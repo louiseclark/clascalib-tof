@@ -21,14 +21,14 @@ import org.root.histogram.H1D;
 import org.root.pad.*;
 import org.root.group.*;
 import org.root.histogram.*;
+import org.root.base.IDataSet;
 import org.root.data.DataSetXY;
 import org.root.func.*;
-
 
 public class FTOFCalibration extends DetectorMonitoring {
 	
 	public FTOFCalibration() {
-		super("FTOF", "0.1", "Louise Clark");
+		super("FTOF Calibration", "0.1", "Louise Clark");
 	}
 
 	// Constants
@@ -41,6 +41,11 @@ public class FTOFCalibration extends DetectorMonitoring {
 	final double ALT_GM_FIT_LOW_FRACTION = 0.25;
 	final double ALT_GM_FIT_HIGH_WIDTH = 1200;
 	final double GM_FIT_ALT_CUT_OFF = 2000;
+	final double LEFT_RIGHT_RATIO = 0.3;
+	
+
+	// Valid run types are leftRight, veff, highVoltage and atten
+	public String mRunType = "atten";
 	
 	private H1D rebin(H1D h1, int nBinsCombine) {
 		
@@ -150,7 +155,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 		H1D geoMeanPeakHist = (H1D) getDir().getDirectory("calibration/"+directory+"/geomean").getObject("GEOMEAN_PEAK_ALL");
 		
 		int numPaddles =0;
-		if (directory=="ftof1a") numPaddles=23;
+		if (directory=="ftof1a") numPaddles=23; 
 		if (directory=="ftof1b") numPaddles=62;
 		if (directory=="ftof2b") numPaddles=5;
 		
@@ -229,6 +234,114 @@ public class FTOFCalibration extends DetectorMonitoring {
 		currentPaddle.setLogRatioError(logRatioError);
 		
 	}
+	
+	private void calculateLeftRight(String directory, int sectorNum, int paddleNum, FTOFPaddle currentPaddle) {
+		
+		// Get the effective velocity histogram
+		String paddleText = String.format("%02d", paddleNum);
+		H1D leftRightHist = (H1D) getDir().getDirectory("calibration/"+directory+"/leftright").getObject("LEFTRIGHT_S"+sectorNum+"_P"+paddleText);
+		
+		int nBin = leftRightHist.getXaxis().getNBins();
+
+		// calculate the 'average' of all bins
+		double averageAllBins=0;
+		for(int i=1;i<=nBin;i++)
+			averageAllBins+=leftRightHist.getBinContent(i);
+		averageAllBins/=nBin;
+
+		// find the first points left and right of centre with bin content < average
+		int lowRangeFirstCut=0,highRangeFirstCut=0;
+		for(int i=nBin/2;i>=1;i--){
+			if(leftRightHist.getBinContent(i)<averageAllBins){
+				lowRangeFirstCut=i;
+				break;
+			}
+		}
+		for(int i=nBin/2;i<=nBin;i++){
+			if(leftRightHist.getBinContent(i)<averageAllBins){
+				highRangeFirstCut=i;
+				break;
+			}
+		}
+		
+		// now calculate the 'average' in this range
+		double averageCentralRange=0;
+		for(int i=lowRangeFirstCut;i<=highRangeFirstCut;i++)
+			averageCentralRange+=leftRightHist.getBinContent(i);
+		averageCentralRange/=(highRangeFirstCut-lowRangeFirstCut+1);
+		
+		// find the first points left and right of centre with bin content < 0.3 * average in the range
+		double threshold=averageCentralRange*LEFT_RIGHT_RATIO;
+		if(averageCentralRange<20) return;
+		int lowRangeSecondCut=0, highRangeSecondCut=0;
+		for(int i=nBin/2;i>=1;i--){
+			if(leftRightHist.getBinContent(i)<threshold){
+				lowRangeSecondCut=i;
+				break;
+			}
+		}
+		for(int i=nBin/2;i<=nBin;i++){
+			if(leftRightHist.getBinContent(i)<threshold){
+				highRangeSecondCut=i;
+				break;
+			}
+		}
+
+		// store the function showing the width of the spread
+		F1D leftRightFunc = new F1D("p1",leftRightHist.getAxis().getBinCenter(lowRangeSecondCut), 
+									     leftRightHist.getAxis().getBinCenter(highRangeSecondCut));
+		leftRightFunc.setParameter(1, 0.0);
+		leftRightFunc.setParameter(0, averageCentralRange); // height to draw line at
+
+		leftRightFunc.setName("LEFTRIGHT_FUNC_S"+sectorNum+"_P"+paddleText);
+
+		getDir().getDirectory("calibration/"+directory+"/leftright").add(leftRightFunc);
+
+		// Return the calibration constants (the left and right edges of the range)
+		currentPaddle.setLRLeftEdge(leftRightHist.getAxis().getBinCenter(lowRangeSecondCut));
+		currentPaddle.setLRRightEdge(leftRightHist.getAxis().getBinCenter(highRangeSecondCut));		
+		
+		//find error
+		// TO DO
+//		double errorAverage = Math.sqrt(averageAllBins);
+//		double errorThreshold = errorAverage*LEFT_RIGHT_RATIO;
+//		average+=sqrt(average);
+//		  average*=ratio;
+//		  for(int i=nBin/2;i>=1;i--){
+//		    if(h->GetBinContent(i)<average){
+//		      lowRange=i;
+//		      break;
+//		    }
+//		  }
+//		  for(int i=nBin/2;i<=nBin;i++){
+//		    if(h->GetBinContent(i)<average){
+//		      highRange=i;
+//		      break;
+//		    }
+//		  }
+//		  mErrorLeft=h->GetBinCenter(lowRange);
+//		  mErrorRight=h->GetBinCenter(highRange);
+//		  mErrorLeft=mErrorLeft-mLeft;
+//		  mErrorRight=mErrorRight-mRight;
+//		
+		
+		// Plot the midpoint of the range in the summary plot
+		GraphErrors leftRightSummGraph = (GraphErrors) getDir().getDirectory("calibration/"+directory+"/leftright").getObject("LEFTRIGHT_ALL");
+		
+		int numPaddles =0;
+		if (directory=="ftof1a") numPaddles=23; 
+		if (directory=="ftof1b") numPaddles=62;
+		if (directory=="ftof2b") numPaddles=5;
+		
+		//leftRightSummHist.setBinContent((sectorNum*numPaddles)+paddleNum, 
+		//		  						 (lowRangeSecondCut+highRangeSecondCut)/2);
+		
+		
+		//leftRightSummGraph.add((sectorNum*numPaddles)+paddleNum, (lowRangeSecondCut+highRangeSecondCut)/2);
+		//leftRightSummGraph.add((sectorNum*numPaddles)+paddleNum,2.0);
+		
+	}
+		
 	
 	private void calculateVeffEdges(String directory, int sectorNum, int paddleNum, FTOFPaddle currentPaddle) {
 		
@@ -324,28 +437,28 @@ public class FTOFCalibration extends DetectorMonitoring {
 			
 			// Test - draw the graph
 			
-			TCanvas c1 = new TCanvas("Attenuation","Attenuation",1200,800,1,1);
+			//TCanvas c1 = new TCanvas("Attenuation","Attenuation",1200,800,1,1);
 			
-			attenGraph.setLineColor(2);
-			c1.draw(attenGraph,"*");
-			c1.draw(attenFunc, "same");
+			//attenGraph.setLineColor(2);
+			//c1.draw(attenGraph,"*");
+			//c1.draw(attenFunc, "same");
 			
 		}
 		
 		// Test
 		// Draw out a few of the projections
-		if ((directory=="ftof1a") && (sectorNum == 0) && (paddleNum == 4)) {
-			TCanvas c1 = new TCanvas("Y Projection", "Y Projection", 1200,800,2,2);
-			c1.cd(0);
-			c1.draw(attenHist.sliceY(attenHist.getXAxis().getBin(2.0)));
-			c1.cd(1);
-			c1.draw(attenHist.sliceY(attenHist.getXAxis().getBin(2.5)));
-			c1.cd(2);
-			c1.draw(attenHist.sliceY(attenHist.getXAxis().getBin(5.5)));
-			c1.cd(3);
-			c1.draw(attenHist.sliceY(attenHist.getXAxis().getBin(9.0)));
-			
-		}
+//		if ((directory=="ftof1a") && (sectorNum == 0) && (paddleNum == 4)) {
+//			TCanvas c1 = new TCanvas("Y Projection", "Y Projection", 1200,800,2,2);
+//			c1.cd(0);
+//			c1.draw(attenHist.sliceY(attenHist.getXAxis().getBin(2.0)));
+//			c1.cd(1);
+//			c1.draw(attenHist.sliceY(attenHist.getXAxis().getBin(2.5)));
+//			c1.cd(2);
+//			c1.draw(attenHist.sliceY(attenHist.getXAxis().getBin(5.5)));
+//			c1.cd(3);
+//			c1.draw(attenHist.sliceY(attenHist.getXAxis().getBin(9.0)));
+//			
+//		}
 		
 		
 		
@@ -361,28 +474,39 @@ public class FTOFCalibration extends DetectorMonitoring {
 								BufferedWriter geoMeanBw,
 								BufferedWriter logRatioBw) throws IOException {
 		
-		// Geometric Mean
 		FTOFPaddle currentPaddle = new FTOFPaddle();
-		fitGain(directory, sectorNum, paddleNum, currentPaddle);
-		geoMeanBw.write(sectorNum+" "+panel+" "+paddleNum+" "
-				+currentPaddle.getGeometricMeanPeak()+" "+currentPaddle.getGeometricMeanError());
-		geoMeanBw.newLine();	
 		
-		// Log Ratio
-		calculateLogRatio(directory, sectorNum, paddleNum, currentPaddle);
-		logRatioBw.write(sectorNum+" "+panel+" "+paddleNum+" "
-				+currentPaddle.getLogRatioPeak()+" "+currentPaddle.getLogRatioError());
-		logRatioBw.newLine();
+		if (mRunType == "veff") {
+			// Effective Velocity
+			calculateVeffEdges(directory, sectorNum, paddleNum, currentPaddle);
+			veffBw.write(sectorNum+" "+panel+" "+paddleNum+" "
+					+currentPaddle.getVeffLeftEdge()+" "+currentPaddle.getVeffRightEdge());
+			veffBw.newLine();
+		}
 		
-		// Effective Velocity
-		calculateVeffEdges(directory, sectorNum, paddleNum, currentPaddle);
-		veffBw.write(sectorNum+" "+panel+" "+paddleNum+" "
-				+currentPaddle.getVeffLeftEdge()+" "+currentPaddle.getVeffRightEdge());
-		veffBw.newLine();
+		if (mRunType == "highVoltage") {
+			// Geometric Mean
+			fitGain(directory, sectorNum, paddleNum, currentPaddle);
+			geoMeanBw.write(sectorNum+" "+panel+" "+paddleNum+" "
+					+currentPaddle.getGeometricMeanPeak()+" "+currentPaddle.getGeometricMeanError());
+			geoMeanBw.newLine();
+
+			// Log Ratio
+			calculateLogRatio(directory, sectorNum, paddleNum, currentPaddle);
+			logRatioBw.write(sectorNum+" "+panel+" "+paddleNum+" "
+					+currentPaddle.getLogRatioPeak()+" "+currentPaddle.getLogRatioError());
+			logRatioBw.newLine();
+		}
 		
-		// Attenuation Length
-		//fitAttenSlope(directory, sectorNum, paddleNum, currentPaddle);
+		if (mRunType == "leftRight") {
+			
+			calculateLeftRight(directory, sectorNum, paddleNum, currentPaddle);
+		}
 		
+		if (mRunType == "atten") {
+			// Attenuation Length
+			fitAttenSlope(directory, sectorNum, paddleNum, currentPaddle);
+		}
 		
 	}
 	
@@ -527,42 +651,116 @@ public class FTOFCalibration extends DetectorMonitoring {
 		// create the directory structure
 		System.out.println("LOUISE init");
 		
-		TDirectory veffDir1a = new TDirectory("calibration/ftof1a/veff");
-		TDirectory veffDir1b = new TDirectory("calibration/ftof1b/veff");
-		TDirectory veffDir2b = new TDirectory("calibration/ftof2b/veff");
-		TDirectory geoMeanDir1a = new TDirectory("calibration/ftof1a/geomean");
-		TDirectory geoMeanDir1b = new TDirectory("calibration/ftof1b/geomean");
-		TDirectory geoMeanDir2b = new TDirectory("calibration/ftof2b/geomean");
-		TDirectory logRatioDir1a = new TDirectory("calibration/ftof1a/logratio");
-		TDirectory logRatioDir1b = new TDirectory("calibration/ftof1b/logratio");
-		TDirectory logRatioDir2b = new TDirectory("calibration/ftof2b/logratio");
-//		TDirectory attenDir1a = new TDirectory("calibration/ftof1a/atten");
-//		TDirectory attenDir1b = new TDirectory("calibration/ftof1b/atten");
-//		TDirectory attenDir2b = new TDirectory("calibration/ftof2b/atten");
+		TDirectory veffDir1a = new TDirectory();
+		TDirectory veffDir1b = new TDirectory();
+		TDirectory veffDir2b = new TDirectory();
+		TDirectory geoMeanDir1a = new TDirectory();
+		TDirectory geoMeanDir1b = new TDirectory();
+		TDirectory geoMeanDir2b = new TDirectory();
+		TDirectory logRatioDir1a = new TDirectory();
+		TDirectory logRatioDir1b = new TDirectory();
+		TDirectory logRatioDir2b = new TDirectory();
+		TDirectory leftRightDir1a = new TDirectory();
+		TDirectory leftRightDir1b = new TDirectory();
+		TDirectory leftRightDir2b = new TDirectory();
+		TDirectory attenDir1a = new TDirectory();
+		TDirectory attenDir1b = new TDirectory();
+		TDirectory attenDir2b = new TDirectory();
 		
-		getDir().addDirectory(veffDir1a);
-		getDir().addDirectory(veffDir1b);
-		getDir().addDirectory(veffDir2b);
-		getDir().addDirectory(geoMeanDir1a);
-		getDir().addDirectory(geoMeanDir1b);
-		getDir().addDirectory(geoMeanDir2b);
-		getDir().addDirectory(logRatioDir1a);
-		getDir().addDirectory(logRatioDir1b);
-		getDir().addDirectory(logRatioDir2b);
-//		getDir().addDirectory(attenDir1a);
-//		getDir().addDirectory(attenDir1b);
-//		getDir().addDirectory(attenDir2b);
+		if (mRunType=="veff") {
+			veffDir1a = new TDirectory("calibration/ftof1a/veff");
+			veffDir1b = new TDirectory("calibration/ftof1b/veff");
+			veffDir2b = new TDirectory("calibration/ftof2b/veff");
+			
+			getDir().addDirectory(veffDir1a);
+			getDir().addDirectory(veffDir1b);
+			getDir().addDirectory(veffDir2b);
+			
+			// summary plots for all paddles			
+			veffDir1a.add(new H1D("VEFF_WIDTH_ALL", 139, -0.5, 138.5));
+			veffDir1b.add(new H1D("VEFF_WIDTH_ALL", 373, -0.5, 372.5));
+			veffDir2b.add(new H1D("VEFF_WIDTH_ALL", 31, 0.5, 30.5));			
+		}
+		
+		if (mRunType=="highVoltage") {
+		
+			geoMeanDir1a = new TDirectory("calibration/ftof1a/geomean");
+			geoMeanDir1b = new TDirectory("calibration/ftof1b/geomean");
+			geoMeanDir2b = new TDirectory("calibration/ftof2b/geomean");
+			logRatioDir1a = new TDirectory("calibration/ftof1a/logratio");
+			logRatioDir1b = new TDirectory("calibration/ftof1b/logratio");
+			logRatioDir2b = new TDirectory("calibration/ftof2b/logratio");
+			
+			getDir().addDirectory(geoMeanDir1a);
+			getDir().addDirectory(geoMeanDir1b);
+			getDir().addDirectory(geoMeanDir2b);
+			getDir().addDirectory(logRatioDir1a);
+			getDir().addDirectory(logRatioDir1b);
+			getDir().addDirectory(logRatioDir2b);		
+			
+			// summary plots for all paddles
+			geoMeanDir1a.add(new H1D("GEOMEAN_PEAK_ALL", 139, -0.5, 138.5));
+			geoMeanDir1b.add(new H1D("GEOMEAN_PEAK_ALL", 373, -0.5, 372.5));
+			geoMeanDir2b.add(new H1D("GEOMEAN_PEAK_ALL", 31, 0.5, 30.5));
 
-		// summary plots for all paddles
-		geoMeanDir1a.add(new H1D("GEOMEAN_PEAK_ALL", 139, -0.5, 138.5));
-		geoMeanDir1b.add(new H1D("GEOMEAN_PEAK_ALL", 373, -0.5, 372.5));
-		geoMeanDir2b.add(new H1D("GEOMEAN_PEAK_ALL", 31, 0.5, 30.5));
-		veffDir1a.add(new H1D("VEFF_WIDTH_ALL", 139, -0.5, 138.5));
-		veffDir1b.add(new H1D("VEFF_WIDTH_ALL", 373, -0.5, 372.5));
-		veffDir2b.add(new H1D("VEFF_WIDTH_ALL", 31, 0.5, 30.5));
-		logRatioDir1a.add(new H1D("LOG_RATIO_ALL", 139, -0.5, 138.5));
-		logRatioDir1b.add(new H1D("LOG_RATIO_ALL", 373, -0.5, 372.5));
-		logRatioDir2b.add(new H1D("LOG_RATIO_ALL", 31, 0.5, 30.5));
+			logRatioDir1a.add(new H1D("LOG_RATIO_ALL", 139, -0.5, 138.5));
+			logRatioDir1b.add(new H1D("LOG_RATIO_ALL", 373, -0.5, 372.5));
+			logRatioDir2b.add(new H1D("LOG_RATIO_ALL", 31, 0.5, 30.5));
+		}
+
+		if (mRunType=="leftRight") {
+			leftRightDir1a = new TDirectory("calibration/ftof1a/leftright");
+			leftRightDir1b = new TDirectory("calibration/ftof1b/leftright");
+			leftRightDir2b = new TDirectory("calibration/ftof2b/leftright");
+			
+			getDir().addDirectory(leftRightDir1a);
+			getDir().addDirectory(leftRightDir1b);
+			getDir().addDirectory(leftRightDir2b);
+			
+			// summary plots for all paddles	
+			
+			double[] x1a = new double[139];
+			double[] x1b = new double[373];
+			double[] x2b = new double[31];
+			double[] y1a = new double[139];
+			double[] y1b = new double[373];
+			double[] y2b = new double[31];
+			
+			GraphErrors summ1a = new GraphErrors(x1a,y1a);
+			summ1a.setName("LEFTRIGHT_ALL");
+			GraphErrors summ1b = new GraphErrors(x1b,y1b);
+			summ1a.setName("LEFTRIGHT_ALL");
+			GraphErrors summ2b = new GraphErrors(x2b,y2b);
+			summ1a.setName("LEFTRIGHT_ALL");
+			
+			
+			leftRightDir1a.add(summ1a);
+			leftRightDir1b.add(summ1b);
+			leftRightDir2b.add(summ2b);		
+			
+			// sticking in veff plots for now			
+			leftRightDir1a.add(new H1D("VEFF_WIDTH_ALL", 139, -0.5, 138.5));
+			leftRightDir1b.add(new H1D("VEFF_WIDTH_ALL", 373, -0.5, 372.5));
+			leftRightDir2b.add(new H1D("VEFF_WIDTH_ALL", 31, 0.5, 30.5));			
+			
+		}
+		
+		if (mRunType=="atten") {
+				
+			attenDir1a = new TDirectory("calibration/ftof1a/atten");
+			attenDir1b = new TDirectory("calibration/ftof1b/atten");
+			attenDir2b = new TDirectory("calibration/ftof2b/atten");
+
+			getDir().addDirectory(attenDir1a);
+			getDir().addDirectory(attenDir1b);
+			getDir().addDirectory(attenDir2b);
+			
+			// summary plots for all paddles			
+			attenDir1a.add(new H1D("ATTEN_ALL", 139, -0.5, 138.5));
+			attenDir1b.add(new H1D("ATTEN_ALL", 373, -0.5, 372.5));
+			attenDir2b.add(new H1D("ATTEN_ALL", 31, 0.5, 30.5));	
+		}
+		
 		
 		// create the histograms, one per sector, per paddle
 		for (int sectorNum=0; sectorNum < 6; sectorNum++){
@@ -574,13 +772,20 @@ public class FTOFCalibration extends DetectorMonitoring {
 				
 				// Should the ranges be more dynamically worked out?
 				
-				veffDir1a.add(new H1D("VEFF_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
-				geoMeanDir1a.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 1000, 0.0, 3000.0));
-				logRatioDir1a.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 500, -3.0, 3.0));
-				
-				// N.B. not sure these ranges are correct
-//				attenDir1a.add(new H2D("ATTEN_S"+sectorNum+"_P"+paddleText, 300, -5.0, 20.0, 300, 0.0, 1.8)); 
-				
+				if (mRunType == "veff") {
+					veffDir1a.add(new H1D("VEFF_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
+				}
+				if (mRunType == "highVoltage") {
+					geoMeanDir1a.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 1000, 0.0, 3000.0));
+					logRatioDir1a.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 500, -3.0, 3.0));
+				}
+				if (mRunType == "leftRight") {
+					leftRightDir1a.add(new H1D("LEFTRIGHT_S"+sectorNum+"_P"+paddleText, 200,-50.0,50.0));
+				}
+				if (mRunType == "atten") {				
+					// N.B. not sure these ranges are correct
+					attenDir1a.add(new H2D("ATTEN_S"+sectorNum+"_P"+paddleText, 300, -5.0, 20.0, 300, 0.0, 1.8)); 
+				}
 			}
 
 			// Panel 1b
@@ -588,12 +793,20 @@ public class FTOFCalibration extends DetectorMonitoring {
 				
 				String paddleText = String.format("%02d", paddleNum);
 				
-				veffDir1b.add(new H1D("VEFF_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
-				geoMeanDir1b.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 1000, 0.0, 3000.0));
-				logRatioDir1b.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 500, -3.0, 3.0));
-				
-				// N.B. not sure these ranges are correct
-//				attenDir1b.add(new H2D("ATTEN_S"+sectorNum+"_P"+paddleText, 500, 0.0, 6.0, 500, 0.0, 6.0)); 
+				if (mRunType == "veff") {
+					veffDir1b.add(new H1D("VEFF_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
+				}
+				if (mRunType =="highVoltage") {
+					geoMeanDir1b.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 1000, 0.0, 3000.0));
+					logRatioDir1b.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 500, -3.0, 3.0));
+				}
+				if (mRunType == "leftRight") {
+					leftRightDir1b.add(new H1D("LEFTRIGHT_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
+				}
+				if (mRunType == "atten") {
+					// N.B. not sure these ranges are correct
+					attenDir1b.add(new H2D("ATTEN_S"+sectorNum+"_P"+paddleText, 500, 0.0, 6.0, 500, 0.0, 6.0));
+				}
 				
 			}
 
@@ -602,13 +815,20 @@ public class FTOFCalibration extends DetectorMonitoring {
 				
 				String paddleText = String.format("%02d", paddleNum);
 				
-				veffDir2b.add(new H1D("VEFF_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
-				geoMeanDir2b.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 1000, 0.0, 3000.0));
-				logRatioDir2b.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 500, -3.0, 3.0));
-				
-				
-				// N.B. not sure these ranges are correct
-//				attenDir2b.add(new H2D("ATTEN_S"+sectorNum+"_P"+paddleText, 500, 0.0, 30.0, 500, 0.0, 6.0)); 
+				if (mRunType == "veff") {
+					veffDir2b.add(new H1D("VEFF_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
+				}
+				if (mRunType == "highVoltage") {
+					geoMeanDir2b.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 1000, 0.0, 3000.0));
+					logRatioDir2b.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 500, -3.0, 3.0));
+				}
+				if (mRunType == "leftRight") {
+					leftRightDir2b.add(new H1D("LEFTRIGHT_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
+				}
+				if (mRunType == "atten") {
+					// N.B. not sure these ranges are correct
+					attenDir2b.add(new H2D("ATTEN_S"+sectorNum+"_P"+paddleText, 500, 0.0, 30.0, 500, 0.0, 6.0));
+				}
 				
 			}
 				
@@ -630,55 +850,74 @@ public class FTOFCalibration extends DetectorMonitoring {
 			int paddle = bank.getInt("paddle",i);
 			String paddleText = String.format("%02d", bank.getInt("paddle",i));
 
-			// fill the geomean histogram with sqrt(adc left * adc right) for the current paddle
-			// fill the veff histogram with (tdc left / tdc right) / 2
-			// fill the log ratio histogram with log (adc right / adc left)
-
-			// Effective velocity
-			H1D veffHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/veff").getObject("VEFF_S"+sector+"_P"+paddleText);
-			veffHist.fill((tdcLeft-tdcRight)/2);			
-			
-			// The following functionality is only in testGeometricMean, so I'm not sure if this should be included
-			// Subtract 300 from the ADC values before adding to histogram
-			// Do not include any where either ADC value is < 300
-			// Basically throws away the part of the histogram containing the pedestal, and shifts everything left by 300
-
-			if (adcLeft>PEDESTAL_CUT_OFF && adcRight>PEDESTAL_CUT_OFF) {
-
-				adcLeft = adcLeft-PEDESTAL_CUT_OFF;
-				adcRight = adcRight-PEDESTAL_CUT_OFF;
-
-				double geoMean = Math.sqrt((adcLeft) * (adcRight));
-				H1D geoMeanHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/geomean").getObject("GEOMEAN_S"+sector+"_P"+paddleText);
-				geoMeanHist.fill(geoMean);
-
-				if (geoMean > LOG_RATIO_X_THRESHOLD) {
-
-					H1D logRatioHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/logratio").getObject("LOGRATIO_S"+sector+"_P"+paddleText);
-					logRatioHist.fill(Math.log(adcRight/adcLeft));
-
-				}	
+			if (mRunType == "veff") {
+				// Effective velocity
+				// fill the veff histogram with (tdc left / tdc right) / 2
+				H1D veffHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/veff").getObject("VEFF_S"+sector+"_P"+paddleText);
+				veffHist.fill((tdcLeft-tdcRight)/2);	
 			}
 			
-			// Atten
-//			H2D attenHist = (H2D) getDir().getDirectory("calibration/"+subdirectory+"/atten").getObject("ATTEN_S"+sector+"_P"+paddleText);
+			if (mRunType == "highVoltage") {
 			
-			// current c++ generates test data for this I think
-			double vEff = 16; // default effective velocity to 16cm/ns
+				// Geometric mean and log ratio
+				// fill the geomean histogram with sqrt(adc left * adc right) for the current paddle
+				// fill the log ratio histogram with log (adc right / adc left)
+
+				// The following functionality is only in testGeometricMean, so I'm not sure if this should be included
+				// Subtract 300 from the ADC values before adding to histogram
+				// Do not include any where either ADC value is < 300
+				// Basically throws away the part of the histogram containing the pedestal, and shifts everything left by 300
+
+				if (adcLeft>PEDESTAL_CUT_OFF && adcRight>PEDESTAL_CUT_OFF) {
+
+					adcLeft = adcLeft-PEDESTAL_CUT_OFF;
+					adcRight = adcRight-PEDESTAL_CUT_OFF;
+
+					double geoMean = Math.sqrt((adcLeft) * (adcRight));
+					H1D geoMeanHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/geomean").getObject("GEOMEAN_S"+sector+"_P"+paddleText);
+					geoMeanHist.fill(geoMean);
+
+					if (geoMean > LOG_RATIO_X_THRESHOLD) {
+
+						H1D logRatioHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/logratio").getObject("LOGRATIO_S"+sector+"_P"+paddleText);
+						logRatioHist.fill(Math.log(adcRight/adcLeft));
+
+					}	
+				}
+			}
 			
-			if(tdcLeft>1 && tdcRight>1){
-			      int indexLeft=paddle/100*1000+paddle%100;
-			      int indexRight=indexLeft+100;
-			      double energyLeft=adcToEnergy(indexLeft,adcLeft);
-			      double energyRight=adcToEnergy(indexRight,adcRight);
-			      double timeLeft=tdcToTime(indexLeft,tdcLeft);
-			      double timeRight=tdcToTime(indexRight,tdcRight);
-			      
-			      if(energyLeft<0) break;
-			      if(energyRight<0) break;
-			      if(Math.log(energyRight)<1e-6) break;
+			if (mRunType == "leftRight") {
+					
+				H1D leftRightHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/leftright").getObject("LEFTRIGHT_S"+sector+"_P"+paddleText);
+				double timeLeft=tdcToTime(0,tdcLeft);
+				double timeRight=tdcToTime(0,tdcRight);
+				double vEff = 16; // default effective velocity to 16cm/ns
+				leftRightHist.fill((timeLeft-timeRight)*vEff);
+				
+			}
+				
+			if (mRunType == "atten") {
 			
-//			      attenHist.fill( ((timeLeft-timeRight)*vEff)/2, Math.log(energyLeft)/Math.log(energyRight));
+				// Atten
+				H2D attenHist = (H2D) getDir().getDirectory("calibration/"+subdirectory+"/atten").getObject("ATTEN_S"+sector+"_P"+paddleText);
+
+				// current c++ generates test data for this I think
+
+				if(tdcLeft>1 && tdcRight>1){
+					int indexLeft=paddle/100*1000+paddle%100;
+					int indexRight=indexLeft+100;
+					double energyLeft=adcToEnergy(indexLeft,adcLeft);
+					double energyRight=adcToEnergy(indexRight,adcRight);
+					double timeLeft=tdcToTime(indexLeft,tdcLeft);
+					double timeRight=tdcToTime(indexRight,tdcRight);
+
+					if(energyLeft<0) break;
+					if(energyRight<0) break;
+					if(Math.log(energyRight)<1e-6) break;
+
+					double vEff = 16; // default effective velocity to 16cm/ns
+					attenHist.fill( ((timeLeft-timeRight)*vEff)/2, Math.log(energyLeft)/Math.log(energyRight));
+				}
 			}
 			
 		}
@@ -686,7 +925,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 
 	@Override
 	public void processEvent(EvioDataEvent event) {
-
+		
 	try {
 		if (event.hasBank("FTOF1A::dgtz")==true){
 			processBank(event, "FTOF1A::dgtz", "ftof1a");
@@ -724,8 +963,8 @@ public class FTOFCalibration extends DetectorMonitoring {
 			analyze();
 		}
 		
-	    String titleString = "SECTOR " + sector + " LAYER " + layer + " PADDLE " + component;
-	    canvas.divide(3,2);
+	    String titleString = "SECTOR " + sector  + " PADDLE " + component;
+		String paddleText = String.format("%02d", component);	    
 	    
 	    String panelName ="";
 	    if (layer==0) { 
@@ -739,84 +978,149 @@ public class FTOFCalibration extends DetectorMonitoring {
 	    //H1D hissstADCL = this.FTOF1A_ADCL.get(sector).sliceX(component);
 
 	    try {
-
-	    	H1D geoMeanSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_PEAK_ALL");
-	    	geoMeanSummHist.setTitle("Geometric Mean Summary");
-	    	geoMeanSummHist.setXTitle("Paddle Number");
-	    	geoMeanSummHist.setYTitle("Peak Position");
-
-	    	canvas.cd(0);
-	    	canvas.draw(geoMeanSummHist);
-
-	    	String paddleText = String.format("%02d", component);
-	    	H1D geoMeanHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_S"+sector+"_P"+paddleText);
-	    	geoMeanHist.setTitle(titleString + ": Geometric Mean");
-	    		    	
-	    	F1D geoMeanFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+paddleText);
-	    	DataSetXY funcData = geoMeanFunc.getDataSet();
-	    	//DataSetXY funcData = (DataSetXY) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+paddleText);
 	    	
-	    	canvas.cd(1);
-	    	geoMeanHist.setLineColor(2);
-	    	canvas.draw(geoMeanHist);
-	    	funcData.setMarkerColor(1);
-	    	funcData.setMarkerStyle(2);
-	    	funcData.setMarkerSize(3);
-	    	canvas.draw(funcData);
+	    	if (mRunType == "veff") {
 
-	    		    	
-	    	H1D veffSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/veff").getObject("VEFF_WIDTH_ALL");
-	    	veffSummHist.setTitle("Effective Velocity Summary");
-	    	veffSummHist.setXTitle("Paddle Number");
-	    	veffSummHist.setYTitle("Width");
+	    		canvas.divide(2,1);
+		    	
+	    		H1D veffSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/veff").getObject("VEFF_WIDTH_ALL");
+	    		veffSummHist.setTitle("Effective Velocity Summary");
+	    		veffSummHist.setXTitle("Paddle Number");
+	    		veffSummHist.setYTitle("Width");
+
+	    		canvas.cd(0);
+	    		canvas.draw(veffSummHist);
+
+	    		H1D veffHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/veff").getObject("VEFF_S"+sector+"_P"+paddleText);
+	    		veffHist.setTitle(titleString + ": Effective Velocity");
+
+	    		F1D veffFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/veff").getObject("VEFF_FUNC_S"+sector+"_P"+paddleText);
+	    		DataSetXY veffFuncData = veffFunc.getDataSet();
+
+	    		canvas.cd(1);
+	    		veffHist.setLineColor(2);
+	    		canvas.draw(veffHist);
+	    		veffFuncData.setMarkerColor(1);
+	    		veffFuncData.setMarkerStyle(2);
+	    		veffFuncData.setMarkerSize(3);
+	    		canvas.draw(veffFuncData);
+	    		
+	    	}
+
+	    	if (mRunType == "highVoltage") {
+	    		
+	    		canvas.divide(2,2);
+	    		
+	    		H1D geoMeanSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_PEAK_ALL");
+	    		geoMeanSummHist.setTitle("Geometric Mean Summary");
+	    		geoMeanSummHist.setXTitle("Paddle Number");
+	    		geoMeanSummHist.setYTitle("Peak Position");
+
+	    		canvas.cd(0);
+	    		canvas.draw(geoMeanSummHist);
+
+	    		H1D geoMeanHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_S"+sector+"_P"+paddleText);
+	    		geoMeanHist.setTitle(titleString + ": Geometric Mean");
+
+	    		F1D geoMeanFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+paddleText);
+	    		DataSetXY funcData = geoMeanFunc.getDataSet();
+	    		//DataSetXY funcData = (DataSetXY) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+paddleText);
+
+	    		canvas.cd(1);
+	    		geoMeanHist.setLineColor(2);
+	    		canvas.draw(geoMeanHist);
+	    		funcData.setMarkerColor(1);
+	    		funcData.setMarkerStyle(2);
+	    		funcData.setMarkerSize(3);
+	    		canvas.draw(funcData);
+
+	    		H1D logSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/logratio").getObject("LOG_RATIO_ALL");
+	    		logSummHist.setTitle("Log Ratio Summary");
+	    		logSummHist.setXTitle("Paddle Number");
+	    		logSummHist.setYTitle("Log Ratio");
+
+	    		H1D logRatioHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/logratio").getObject("LOGRATIO_S"+sector+"_P"+paddleText);
+	    		logRatioHist.setTitle(titleString + ": Log ratio");
+
+	    		canvas.cd(2);
+	    		canvas.draw(logSummHist);
+
+	    		canvas.cd(3);
+	    		canvas.draw(logRatioHist);
+	    		
+	    	}
 	    	
-	    	canvas.cd(2);
-	    	canvas.draw(veffSummHist);
+	    	if (mRunType == "leftRight") {
 
-	    	H1D veffHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/veff").getObject("VEFF_S"+sector+"_P"+paddleText);
-	    	veffHist.setTitle(titleString + ": Effective Velocity");
+	    		canvas.divide(2,1);
+	    		
+	    		// Sticking in the veff summary plot for now....
+	    		H1D veffSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/leftright").getObject("VEFF_WIDTH_ALL");
+	    		veffSummHist.setTitle("Left Right Summary");
+	    		veffSummHist.setXTitle("Paddle Number");
+	    		veffSummHist.setYTitle("Centre");
 
-	    	F1D veffFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/veff").getObject("VEFF_FUNC_S"+sector+"_P"+paddleText);
-	    	DataSetXY veffFuncData = veffFunc.getDataSet();
+	    		canvas.cd(0);
+	    		canvas.draw(veffSummHist);
+	    		
+	    		
+		    	
+	    		//GraphErrors leftRightSummGraph = (GraphErrors) this.getDir().getDirectory("calibration/"+panelName+"/leftright").getObject("LEFTRIGHT_ALL");
+	    		double[] x1a = new double[139];
+	    		double[] y1a = new double[139];
+	    		GraphErrors leftRightSummGraph = new GraphErrors(x1a,y1a);
+	    		leftRightSummGraph.setTitle("Left Right Summary");
+	    		leftRightSummGraph.setXTitle("Paddle Number");
+	    		leftRightSummGraph.setYTitle("Centre");
+
+	    		canvas.cd(0);
+	    		//canvas.draw(leftRightSummGraph);
+
+	    		H1D leftRightHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/leftright").getObject("LEFTRIGHT_S"+sector+"_P"+paddleText);
+	    		leftRightHist.setTitle(titleString + ": Left Right");
+
+//	    		F1D leftRightFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/leftright").getObject("LEFTRIGHT_FUNC_S"+sector+"_P"+paddleText);
+//	    		DataSetXY leftRightFuncData = leftRightFunc.getDataSet();
+
+	    		canvas.cd(1);
+	    		leftRightHist.setLineColor(2);
+	    		canvas.draw(leftRightHist);
+//	    		leftRightFuncData.setMarkerColor(1);
+//	    		leftRightFuncData.setMarkerStyle(2);
+//	    		leftRightFuncData.setMarkerSize(3);
+//	    		canvas.draw(leftRightFuncData);
+	    		
+	    	}
 	    	
-	    	canvas.cd(3);
-	    	veffHist.setLineColor(2);
-	    	canvas.draw(veffHist);
-	    	veffFuncData.setMarkerColor(1);
-	    	veffFuncData.setMarkerStyle(2);
-	    	veffFuncData.setMarkerSize(3);
-	    	canvas.draw(veffFuncData);
+	    	if (mRunType == "atten") {
+
+	    		canvas.divide(2,1);
+		    	
+	    		H1D attenSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/atten").getObject("ATTEN_ALL");
+	    		attenSummHist.setTitle("Attenuation Length Summary");
+	    		attenSummHist.setXTitle("Paddle Number");
+	    		attenSummHist.setYTitle("Slope");
+
+	    		canvas.cd(0);
+	    		canvas.draw(attenSummHist);
+
+		    	H2D attenHist = (H2D) getDir().getDirectory("calibration/"+panelName+"/atten").getObject("ATTEN_S"+sector+"_P"+paddleText);
+	    		attenHist.setTitle(titleString + ": Attenuation Length");
+
+	    		canvas.cd(1);
+	    		canvas.draw((IDataSet) attenHist);
+	    		
+	    	}
 	    	
-	    	H1D logSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/logratio").getObject("LOG_RATIO_ALL");
-	    	logSummHist.setTitle("Log Ratio Summary");
-	    	logSummHist.setXTitle("Paddle Number");
-	    	logSummHist.setYTitle("Log Ratio");
-
-	    		    	
-	    	H1D logRatioHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/logratio").getObject("LOGRATIO_S"+sector+"_P"+paddleText);
-	    	logRatioHist.setTitle(titleString + ": Log ratio");
-
-
-	    	canvas.cd(3);
-	    	veffHist.setLineColor(2);
-	    	canvas.draw(veffHist);
-	    	veffFuncData.setMarkerColor(1);
-	    	veffFuncData.setMarkerStyle(2);
-	    	veffFuncData.setMarkerSize(3);
-	    	canvas.draw(veffFuncData);
-
-	    	canvas.cd(4);
-	    	canvas.draw(logSummHist);
-
-	    	canvas.cd(5);
-	    	canvas.draw(logRatioHist);
-
-
-
+	    	
+	    	
 	    } catch (Exception e) {
 	    	e.printStackTrace();
 	    }
 
+	    
+	    // Gagik's sample code
+	    
 	    //	            H1D histADCL = new H1D();
 	    //	            histADCL.setTitle(titleString);
 	    //	            histADCL.setXTitle("ADC Left");
@@ -855,18 +1159,17 @@ public class FTOFCalibration extends DetectorMonitoring {
 		FTOFCalibration calib = new FTOFCalibration();
 		calib.init();
 		
-		String fileName = "/home/louise/FTOF_Calibration_040615/trunk/data/usc_first_configuration.txt";
+		String fileName = "/home/louise/local/ftof/data/usc_first_configuration.txt";
 		//String fileName = "/home/louise/workspace/usc_first_configuration.txt";
 		String line = null;
 
-		
 		boolean success = (new File
 		         ("FtofInputFile.0.evio")).delete();
 		
 		EvioDataSync writer = new EvioDataSync();
 		writer.open("FtofInputFile.evio");
 		
-        int maxLines=5000;        	
+        int maxLines=10000;        	
 		
 		try { 
 			
@@ -998,6 +1301,7 @@ public class FTOFCalibration extends DetectorMonitoring {
             bufferedReader.close();            
         }
 		catch(FileNotFoundException ex) {
+			ex.printStackTrace();
             System.out.println(
                 "Unable to open file '" + 
                 fileName + "'");                
