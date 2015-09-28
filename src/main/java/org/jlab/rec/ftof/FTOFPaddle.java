@@ -4,7 +4,7 @@ public class FTOFPaddle {
 
 	// Key fields
 	private int mSector;
-	private String mPanel;
+	private int mLayer;
 	private int mPaddleNumber;
 
 	// Calculated calibration values
@@ -18,12 +18,21 @@ public class FTOFPaddle {
 	private double mLRRightEdge;
 	private double mLRLeftEdgeError;
 	private double mLRRightEdgeError;
+	
+	// Values for fits
+	private double mGeoMeanFitMin;
+	private double mGeoMeanFitMax;
 
 	
 	// Constructor
-	FTOFPaddle() {		
+	FTOFPaddle(int sector, int layer, int paddleNumber) {
+		mSector = sector;
+		mLayer = layer;
+		mPaddleNumber = paddleNumber;
 		mGeometricMeanPeak = 0.0;
 		mGeometricMeanError = 0.0;
+		mGeoMeanFitMin = 0.0;
+		mGeoMeanFitMax = 0.0;
 	}
 
 	// Getters	
@@ -71,6 +80,14 @@ public class FTOFPaddle {
 		return mLRRightEdgeError;
 	}		
 	
+	public double getGeoMeanFitMin() {
+		return mGeoMeanFitMin;
+	}
+
+	public double getGeoMeanFitMax() {
+		return mGeoMeanFitMax;
+	}
+	
 	// Setters	
 	public void setVeffLeftEdge(double veffLeftEdge) {
 		mVeffLeftEdge = veffLeftEdge;
@@ -111,4 +128,12 @@ public class FTOFPaddle {
 	public void setLRRightEdgeError(double lRRightEdgeError) {
 		mLRRightEdgeError = lRRightEdgeError;
 	}	
+	
+	public void setGeoMeanFitMin(double geoMeanFitMin) {
+		mGeoMeanFitMin = geoMeanFitMin;
+	}
+
+	public void setGeoMeanFitMax(double geoMeanFitMax) {
+		mGeoMeanFitMax = geoMeanFitMax;
+	}
 }
