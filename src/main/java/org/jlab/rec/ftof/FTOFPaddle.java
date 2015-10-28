@@ -14,6 +14,7 @@ public class FTOFPaddle {
 	private double mLogRatioError;
 	private double mGeometricMeanPeak;
 	private double mGeometricMeanError;
+	private double mGeometricMeanRedChiSq;
 	private double mLRLeftEdge;
 	private double mLRRightEdge;
 	private double mLRLeftEdgeError;
@@ -63,6 +64,10 @@ public class FTOFPaddle {
 	public double getGeometricMeanError() {
 		return mGeometricMeanError;
 	}
+
+	public double getGeometricMeanRedChiSq() {
+		return mGeometricMeanRedChiSq;
+	}
 	
 	public double getLRLeftEdge() {
 		return mLRLeftEdge;
@@ -111,6 +116,10 @@ public class FTOFPaddle {
 	
 	public void setGeometricMeanError(double geometricMeanError) {
 		mGeometricMeanError = geometricMeanError;
+	}
+	
+	public void setGeometricMeanRedChiSq(double geometricMeanRedChiSq) {
+		mGeometricMeanRedChiSq = geometricMeanRedChiSq;
 	}
 	
 	public void setLRLeftEdge(double lRLeftEdge) {

@@ -7,6 +7,13 @@ import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.MenuItem;
 import java.awt.PopupMenu;
+import java.awt.Rectangle;
+import java.awt.TextArea;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseEvent;
+import java.awt.geom.Line2D;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -14,12 +21,16 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.text.DateFormat;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -30,7 +41,13 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.ListSelectionModel;
 import javax.swing.RowSorter.SortKey;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
+import javax.swing.event.MouseInputAdapter;
+import javax.swing.event.RowSorterEvent;
+import javax.swing.event.RowSorterListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
@@ -74,10 +91,17 @@ public class FTOFCalibration extends DetectorMonitoring {
 	final int[] NUM_PADDLES = {23,62,5};
 	final String[] PANEL_NAME = {"ftof1a","ftof1b","ftof1b"};
 	
+	
 	// create a hashmap of FTOFPaddles to store all the calibration constants
 	HashMap<String, FTOFPaddle> mPaddles = new HashMap<String, FTOFPaddle>();
 
-
+	boolean analyzeDone = false;
+	boolean initDone = false;
+	boolean[][] sectorComplete = { {false, false, false, false, false, false},
+								   {false, false, false, false, false, false},
+								   {false, false, false, false, false, false} };
+	
+	
 	// Valid run types are leftRight, veff, highVoltage and atten
 	public String mRunType = "highVoltage";
 	
@@ -86,6 +110,20 @@ public class FTOFCalibration extends DetectorMonitoring {
 	public String mViewType = "geoMeanView";
 	public List<? extends SortKey>	mSortKey;
 	public int mSelectedRow;
+	
+	private boolean calibComplete() {
+		
+		//if (1==1) return true;
+		
+		for (int layer=0; layer<3; layer++) {
+			for (int sector=0; sector<6; sector++) {
+				if (sectorComplete[layer][sector]==false) return false;
+			}
+		}
+		
+		return true;
+	}
+	
 	
 	private H1D rebin(H1D h1, int nBinsCombine) {
 		
@@ -117,7 +155,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 		
 	}
 
-	private void fitGain(String directory, int sectorNum, int paddleNum, FTOFPaddle currentPaddle) {
+	private void fitGain(String directory, int sectorNum, int layer, int paddleNum, FTOFPaddle currentPaddle) {
 		
 		// Get the geometric mean histogram
 		String paddleText = String.format("%02d", paddleNum);
@@ -160,7 +198,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 		
 		// Have the values been set for this paddle?
 		double startChannelForFit;
-		double endChannelForFit;  // make constant for these if keeping this method
+		double endChannelForFit;  
 		if (currentPaddle.getGeoMeanFitMax()==0.0) {
 			// not set so use default values
 			startChannelForFit = maxChannel * 0.1;
@@ -227,44 +265,49 @@ public class FTOFCalibration extends DetectorMonitoring {
 		
 		getDir().getDirectory("calibration/"+directory+"/geomean").add(func);
 		
+		// Return the calibration constants (the position and error of the peak)
+		currentPaddle.setGeometricMeanPeak(func.getParameter(1));
+		currentPaddle.setGeometricMeanError(func.parameter(1).error());
+		//currentPaddle.setGeometricMeanError(5678);
+
 		// TEST - try calculating chi square
 		double chiSquare = 0.0; 
-		for (int i=startBinForFit; i<=endBinForFit; i++) {
+		
+		double landauPeakChannel = func.getParameter(1);
+		double landauWidth = func.getParameter(2);
+		int landauStart = geoMeanHist.getAxis().getBin(landauPeakChannel - (landauWidth));
+		int landauEnd = geoMeanHist.getAxis().getBin(landauPeakChannel + (landauWidth));
+		
+		//for (int i=startBinForFit; i<=endBinForFit; i++) {
+		for (int i=landauStart; i<=landauEnd; i++) {
 			
 			double expected = func.eval(geoMeanHist.getxAxis().getBinCenter(i));
 			double observed = geoMeanHist.getBinContent(i);
 			chiSquare = chiSquare + (Math.pow((observed - expected),2)/expected);
 		}
 		
-		// Return the calibration constants (the position and error of the peak)
-		currentPaddle.setGeometricMeanPeak(func.getParameter(1));
-		// using error for reduced chi square at the moment
-		currentPaddle.setGeometricMeanError(chiSquare/(endBinForFit-startBinForFit));  
-		//currentPaddle.setGeometricMeanError(
+		//currentPaddle.setGeometricMeanRedChiSq(chiSquare/(endBinForFit-startBinForFit));  
+		int ndf = landauEnd - landauStart;
+		currentPaddle.setGeometricMeanRedChiSq(chiSquare/ndf);
+		
+		//currentPaddle.setGeometricMeanRedChiSq(
 		//		func.getChiSquare(geoMeanHist.getDataSet()) /
-		//		func.getNDF(geoMeanHist.getDataSet())); // this should be the error - TO DO		
+		//		func.getNDF(geoMeanHist.getDataSet())); 	
 		
 		// Plot the values in the summary plot
 		H1D geoMeanPeakHist = (H1D) getDir().getDirectory("calibration/"+directory+"/geomean").getObject("GEOMEAN_PEAK_ALL");
 		
-		int numPaddles =0;
-		if (directory=="ftof1a") numPaddles=23; 
-		if (directory=="ftof1b") numPaddles=62;
-		if (directory=="ftof2b") numPaddles=5;
-		
-		if ((sectorNum==0)&&(paddleNum==0)) {
-			System.out.println("Setting Bin content");
-			System.out.println("Bin number: "+(sectorNum*numPaddles)+paddleNum);
-			System.out.println("Bin content: "+func.getParameter(1));
-		}
-		geoMeanPeakHist.setBinContent((sectorNum*numPaddles)+paddleNum, func.getParameter(1));
+		int paddleBin = (sectorNum*NUM_PADDLES[layer])+paddleNum;
+		geoMeanPeakHist.setBinContent(paddleBin, currentPaddle.getGeometricMeanPeak());
+		geoMeanPeakHist.setBinError(paddleBin, currentPaddle.getGeometricMeanError());
+		//geoMeanPeakHist.setBinError(paddleBin, 500);
 		
 		//for (int i=0; i<func.getParameter(1); i++) {
 		//	geoMeanPeakHist.fill((sectorNum*numPaddles)+paddleNum);
 		//}
 	}
 	
-	private void calculateLogRatio(String directory, int sectorNum, int paddleNum, FTOFPaddle currentPaddle) {
+	private void calculateLogRatioOrig(String directory, int sectorNum, int paddleNum, FTOFPaddle currentPaddle) {
 		
 		// Get the effective velocity histogram
 		String paddleText = String.format("%02d", paddleNum);
@@ -280,6 +323,8 @@ public class FTOFCalibration extends DetectorMonitoring {
 		int nBins = logRatioHist.getAxis().getNBins();
 		boolean lowThresholdReached = false;
 		boolean highThresholdExceeded = false;
+		int lowThresholdBin = 0;
+		int highThresholdBin = 0;
 		
 		for (int i=1; i<=nBins; i++) {
 			
@@ -288,6 +333,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 				
 				if (logRatioHist.getBinContent(i) > (LOG_RATIO_THRESHOLD_FRACTION*maxCounts) && i<maxBin) {
 					lowThresholdReached = true;
+					lowThresholdBin = i;
 				}				
 			}
 			
@@ -295,6 +341,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 				
 				if (logRatioHist.getBinContent(i) < (LOG_RATIO_THRESHOLD_FRACTION*maxCounts) && i>maxBin) {
 					highThresholdExceeded = true;
+					highThresholdBin = i;
 				}				
 			}
 			
@@ -322,11 +369,97 @@ public class FTOFCalibration extends DetectorMonitoring {
 			logRatioError=0.0;
 		}
 		
-		// Return the calibration constants (the left and right edges of half max width)
+		// store the function showing the width over which mean is calculated
+		F1D logRatioFunc = new F1D("p1",logRatioHist.getAxis().getBinCenter(lowThresholdBin), 
+									     logRatioHist.getAxis().getBinCenter(highThresholdBin));
+		logRatioFunc.setParameter(1, 0.0);
+		logRatioFunc.setParameter(0, LOG_RATIO_THRESHOLD_FRACTION*maxCounts); // height to draw line at
+
+		logRatioFunc.setName("LOGRATIO_FUNC_S"+sectorNum+"_P"+paddleText);
+
+		getDir().getDirectory("calibration/"+directory+"/logratio").add(logRatioFunc);
+		
+		
+		// Return the calibration constants 
 		currentPaddle.setLogRatioPeak(logRatioPeak);
 		currentPaddle.setLogRatioError(logRatioError);
 		
 	}
+	
+	private void calculateLogRatio(String directory, int sectorNum, int paddleNum, FTOFPaddle currentPaddle) {
+		
+		// Get the effective velocity histogram
+		String paddleText = String.format("%02d", paddleNum);
+		H1D logRatioHist = (H1D) getDir().getDirectory("calibration/"+directory+"/logratio").getObject("LOGRATIO_S"+sectorNum+"_P"+paddleText);
+
+		// calculate the mean value using portion of the histogram where counts are > 0.2 * max counts
+		
+		double sum =0;
+		double sumWeight =0;
+		double sumSquare =0;
+		int maxBin = logRatioHist.getMaximumBin();
+		double maxCounts = logRatioHist.getBinContent(maxBin);
+		int nBins = logRatioHist.getAxis().getNBins();
+		int lowThresholdBin = 0;
+		int highThresholdBin = nBins-1;
+		
+		// find the bin left of max bin where counts drop to 0.2 * max
+		for (int i=maxBin; i>0; i--) {
+			
+			if (logRatioHist.getBinContent(i) < LOG_RATIO_THRESHOLD_FRACTION*maxCounts) {
+				lowThresholdBin = i;
+				break;
+			}
+		}
+			
+		// find the bin right of max bin where counts drop to 0.2 * max
+		for (int i=maxBin; i<nBins; i++) {
+			
+			if (logRatioHist.getBinContent(i) < LOG_RATIO_THRESHOLD_FRACTION*maxCounts) {
+				highThresholdBin = i;
+				break;
+			}
+		}
+			
+		// include the values in the sum if we're within the thresholds
+		for (int i=lowThresholdBin; i<=highThresholdBin; i++) {
+			
+			double value=logRatioHist.getBinContent(i);
+			double middle=logRatioHist.getAxis().getBinCenter(i);
+			
+			sum+=value;
+			sumWeight+=value*middle;
+			sumSquare+=value*middle*middle;
+		}			
+		
+		double logRatioPeak = 0.0;
+		double logRatioError = 0.0;
+				
+		if (sum>0) {
+			logRatioPeak=sumWeight/sum;
+			logRatioError=Math.sqrt((sumSquare/sum)-logRatioPeak*logRatioPeak);
+		}
+		else {
+			logRatioPeak=0.0;
+			logRatioError=0.0;
+		}
+		
+		// store the function showing the width over which mean is calculated
+		F1D logRatioFunc = new F1D("p1",logRatioHist.getAxis().getBinCenter(lowThresholdBin), 
+									     logRatioHist.getAxis().getBinCenter(highThresholdBin));
+		logRatioFunc.setParameter(1, 0.0);
+		logRatioFunc.setParameter(0, LOG_RATIO_THRESHOLD_FRACTION*maxCounts); // height to draw line at
+
+		logRatioFunc.setName("LOGRATIO_FUNC_S"+sectorNum+"_P"+paddleText);
+
+		getDir().getDirectory("calibration/"+directory+"/logratio").add(logRatioFunc);
+		
+		
+		// Return the calibration constants 
+		currentPaddle.setLogRatioPeak(logRatioPeak);
+		currentPaddle.setLogRatioError(logRatioError);
+		
+	}	
 	
 	private void calculateLeftRight(String directory, int sectorNum, int paddleNum, FTOFPaddle currentPaddle) {
 		
@@ -600,54 +733,76 @@ public class FTOFCalibration extends DetectorMonitoring {
 	}	
 	
 	
-	private void calculateConstants(String directory, int sectorNum, int layer, 
-								String panel, int paddleNum, 
-								BufferedWriter veffBw,
-								BufferedWriter geoMeanBw,
-								BufferedWriter logRatioBw,
-								BufferedWriter calibBw) throws IOException {
+	private void calculateConstants(int sectorNum, int layer, int paddleNum) {
 		
 		String paddleKey = sectorNum + " " + layer + " " + paddleNum;
 		FTOFPaddle currentPaddle = mPaddles.get(paddleKey);
 		
 		if (mRunType == "veff") {
 			// Effective Velocity
-			calculateVeffEdges(directory, sectorNum, paddleNum, currentPaddle);
-			veffBw.write(sectorNum+" "+panel+" "+paddleNum+" "
-					+currentPaddle.getVeffLeftEdge()+" "+currentPaddle.getVeffRightEdge());
-			veffBw.newLine();
+			calculateVeffEdges(PANEL_NAME[layer], sectorNum, paddleNum, currentPaddle);
 		}
 		
 		if (mRunType == "highVoltage") {
 			// Geometric Mean
-			fitGain(directory, sectorNum, paddleNum, currentPaddle);
-			geoMeanBw.write(sectorNum+" "+panel+" "+paddleNum+" "
-					+currentPaddle.getGeometricMeanPeak()+" "+currentPaddle.getGeometricMeanError());
-			geoMeanBw.newLine();
+			fitGain(PANEL_NAME[layer], sectorNum, layer, paddleNum, currentPaddle);
 
 			// Log Ratio
-			calculateLogRatio(directory, sectorNum, paddleNum, currentPaddle);
-			logRatioBw.write(sectorNum+" "+panel+" "+paddleNum+" "
-					+currentPaddle.getLogRatioPeak()+" "+currentPaddle.getLogRatioError());
-			logRatioBw.newLine();
+			calculateLogRatio(PANEL_NAME[layer], sectorNum, paddleNum, currentPaddle);
 		}
 		
 		if (mRunType == "leftRight") {
 			
-			calculateLeftRight(directory, sectorNum, paddleNum, currentPaddle);
-			calibBw.write(sectorNum+" "+panel+" "+paddleNum+" "
-					+currentPaddle.getLRLeftEdge()+" "+currentPaddle.getLRRightEdge()+" "
-					+currentPaddle.getLRLeftEdgeError()+" "+currentPaddle.getLRRightEdgeError());
-			calibBw.newLine();
+			calculateLeftRight(PANEL_NAME[layer], sectorNum, paddleNum, currentPaddle);
 		}
 		
 		if (mRunType == "atten") {
 			// Attenuation Length
-			fitAttenSlope(directory, sectorNum, paddleNum, currentPaddle);
+			fitAttenSlope(PANEL_NAME[layer], sectorNum, paddleNum, currentPaddle);
 		}
 		
 				
 	}
+	
+	private void writeConstants(int sector, int layer, int component, BufferedWriter calibBw) throws IOException {
+
+		String paddleKey = sector + " " + layer + " " + component;
+		FTOFPaddle currentPaddle = mPaddles.get(paddleKey);
+
+		if (mRunType == "veff") {
+
+			calibBw.write(sector + " " + layer + " " + component + " "
+					+ currentPaddle.getVeffLeftEdge() + " "
+					+ currentPaddle.getVeffRightEdge());
+			calibBw.newLine();
+		}
+
+		else if (mRunType == "highVoltage") {
+
+			calibBw.write(sector+ " " + layer + " " + component + " "
+					+ currentPaddle.getGeometricMeanPeak() + " "
+					+ currentPaddle.getGeometricMeanError() + " "
+					+ currentPaddle.getLogRatioPeak() + " "
+					+ currentPaddle.getLogRatioError());
+			calibBw.newLine();
+
+		}
+
+		else if (mRunType == "leftRight") {
+
+			calibBw.write(sector + " " + layer + " " + component + " "
+					+ currentPaddle.getLRLeftEdge() + " "
+					+ currentPaddle.getLRRightEdge() + " "
+					+ currentPaddle.getLRLeftEdgeError() + " "
+					+ currentPaddle.getLRRightEdgeError());
+			calibBw.newLine();
+		}
+
+		else if (mRunType == "atten") {
+			// Attenuation Length
+		}
+
+	}	
 	
 	@Override
 	public Color getColor(int sector, int layer, int component){
@@ -661,7 +816,83 @@ public class FTOFCalibration extends DetectorMonitoring {
 		return new Color(r,g,b);
 		
 	}
+
+	public void writeToFile() {
 		
+		// Create text containing the calibration values
+		try {
+
+			// Get the next file name
+			Date today = new Date();
+			DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+			String todayString = dateFormat.format(today);
+			String filePrefix = "FTOF_CALIBRATION_"+todayString;
+			int newFileNum = 0;
+			
+			File dir = new File(".");
+			File[] filesList = dir.listFiles();
+						
+			for (File file : filesList) {
+			    if (file.isFile()) {
+			    	String fileName = file.getName();
+			    	if (fileName.matches(filePrefix+"[.]\\d+[.]txt")) {
+			        	String fileNumString = fileName.substring(fileName.indexOf('.')+1,fileName.lastIndexOf('.'));
+			        	int fileNum = Integer.parseInt(fileNumString);
+			        	if (fileNum >= newFileNum) newFileNum = fileNum+1;
+			        	
+			        }
+			    }
+			}
+			
+			String fileName = filePrefix+"."+newFileNum+".txt";
+			File calibFile = new File(fileName);
+
+			if (!calibFile.exists()) {
+				calibFile.createNewFile();
+			}
+
+			FileWriter calibFw = new FileWriter(calibFile.getAbsoluteFile());
+
+			BufferedWriter calibBw = new BufferedWriter(calibFw);
+			
+			// Write a header line to the file
+			if (mRunType == "highVoltage") {
+				calibBw.write("Sector Layer Component GeoMeanPeak GeoMeanError LogRatioMean LogRatioError");
+				calibBw.newLine();
+			}
+			if (mRunType == "leftRight") {
+				calibBw.write("Sector Layer Component LeftEdge RightEdge LeftEdgeError RightEdgeError");
+				calibBw.newLine();
+			}
+
+						
+			// run through all the histograms, one per sector, per paddle
+			// write the calibration constants to file
+			for (int sector=0; sector<6; sector++) {
+				
+				for (int layer=0; layer<3; layer++) {
+					
+					for (int component=0; component<NUM_PADDLES[layer]; component++) {
+						
+						writeConstants(sector, layer, component, calibBw);
+					}
+				}				
+			}
+			
+
+			// Close the file
+			calibBw.close();
+			
+			JPanel myPanel = new JPanel();
+			JOptionPane.showMessageDialog(myPanel,"Calibration values written to "+fileName);
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}	
+	}	
+	
+	
+	
 	@Override
 	public void analyze() {
 		
@@ -699,96 +930,24 @@ public class FTOFCalibration extends DetectorMonitoring {
 		c1.draw(attenHist);
 */		
 
-		// Create text files for each of effective velocity, geometric mean, and log ratio
-		try {
+		// Calculate the calibration constants for each paddle
 
-			File veffFile = new File("FTOF_VEFF.txt");
-			File geoMeanFile = new File("FTOF_GEOMEAN.txt");
-			File logRatioFile = new File("FTOF_LOGRATIO.txt");
-			File calibFile = new File("FTOF_CALIBRATION.txt");
+		// run through all the histograms, one per sector, per paddle
+		// calculate the calibration constants and write to file
+		for (int sectorNum=0; sectorNum < 6; sectorNum++){
 
+			for (int layerNum=0; layerNum<3; layerNum++) {
 
-			// if files don't exist, then create them
-			if (!veffFile.exists()) {
-				veffFile.createNewFile();
-			}
-			if (!geoMeanFile.exists()) {
-				geoMeanFile.createNewFile();
-			}
-			if (!logRatioFile.exists()) {
-				logRatioFile.createNewFile();
-			}
-			if (!calibFile.exists()) {
-				calibFile.createNewFile();
-			}
+				for (int paddleNum=0; paddleNum < NUM_PADDLES[layerNum]; paddleNum++) {
 
-			FileWriter veffFw = new FileWriter(veffFile.getAbsoluteFile());
-			FileWriter geoMeanFw = new FileWriter(geoMeanFile.getAbsoluteFile());
-			FileWriter logRatioFw = new FileWriter(logRatioFile.getAbsoluteFile());
-			FileWriter calibFw = new FileWriter(calibFile.getAbsoluteFile());
-
-			BufferedWriter veffBw = new BufferedWriter(veffFw);
-			BufferedWriter geoMeanBw = new BufferedWriter(geoMeanFw);
-			BufferedWriter logRatioBw = new BufferedWriter(logRatioFw);
-			BufferedWriter calibBw = new BufferedWriter(calibFw);
-			
-			// Write a header line to the file
-			if (mRunType == "leftRight") {
-				calibBw.write("Sector Layer Component LeftEdge RightEdge LeftEdgeError RightEdgeError");
-				calibBw.newLine();
-			}
-
-						
-			// run through all the histograms, one per sector, per paddle
-			// calculate the calibration constants and write to file
-			for (int sectorNum=0; sectorNum < 6; sectorNum++){
-
-				// Panel 1a
-				for (int paddleNum=0; paddleNum < 23; paddleNum++) {
-
-					calculateConstants("ftof1a", sectorNum, 0, "Panel-1a", paddleNum, veffBw, geoMeanBw, logRatioBw, calibBw);
-
-				}
-
-				// Panel 1b
-				for (int paddleNum=0; paddleNum < 62; paddleNum++) {
-
-					calculateConstants("ftof1b", sectorNum, 1, "Panel-1b", paddleNum, veffBw, geoMeanBw, logRatioBw, calibBw);
-
-					
-//					FTOFPaddle currentPaddle = new FTOFPaddle();
-//					fitGain("ftof1b", sectorNum, paddleNum, currentPaddle);
-//					geoMeanBw.write(sectorNum+" Panel-1b "+paddleNum+" "
-//							+currentPaddle.getGeometricMeanPeak()+" "+currentPaddle.getGeometricMeanError());
-//					geoMeanBw.newLine();
-
-				}
-
-				// Panel 2
-				for (int paddleNum=0; paddleNum < 5; paddleNum++) {
-
-					calculateConstants("ftof2b", sectorNum, 2, "Panel-2b", paddleNum, veffBw, geoMeanBw, logRatioBw, calibBw);
-//
-//					FTOFPaddle currentPaddle = new FTOFPaddle();
-//					fitGain("ftof2b", sectorNum, paddleNum, currentPaddle);
-//					geoMeanBw.write(sectorNum+" Panel-2b "+paddleNum+" "
-//							+currentPaddle.getGeometricMeanPeak()+" "+currentPaddle.getGeometricMeanError());
-//					geoMeanBw.newLine();
-
+					calculateConstants(sectorNum, layerNum, paddleNum);
 				}
 
 			}
 
-			// Close the files
-			veffBw.close();
-			geoMeanBw.close();
-			logRatioBw.close();
-			calibBw.close();
-			
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-		}		
+		}
+
+		analyzeDone = true;
 	}
 
 	@Override
@@ -934,7 +1093,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 				}
 				if (mRunType == "highVoltage") {
 					geoMeanDir1a.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 200, 0.0, 5000.0));
-					logRatioDir1a.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 100, -3.0, 3.0));
+					logRatioDir1a.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 75, -3.0, 3.0));
 				}
 				if (mRunType == "leftRight") {
 					leftRightDir1a.add(new H1D("LEFTRIGHT_S"+sectorNum+"_P"+paddleText, 200,-1000.0,1000.0));
@@ -960,11 +1119,11 @@ public class FTOFCalibration extends DetectorMonitoring {
 					veffDir1b.add(new H1D("VEFF_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
 				}
 				if (mRunType =="highVoltage") {
-					geoMeanDir1b.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 300, 0.0, 14000.0));
-					logRatioDir1b.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 100, -3.0, 3.0));
+					geoMeanDir1b.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 300, 0.0, 15000.0));
+					logRatioDir1b.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 75, -3.0, 3.0));
 				}
 				if (mRunType == "leftRight") {
-					leftRightDir1b.add(new H1D("LEFTRIGHT_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
+					leftRightDir1b.add(new H1D("LEFTRIGHT_S"+sectorNum+"_P"+paddleText,200,-1000.0,1000.0));
 				}
 				if (mRunType == "atten") {
 					// N.B. not sure these ranges are correct
@@ -989,10 +1148,10 @@ public class FTOFCalibration extends DetectorMonitoring {
 				}
 				if (mRunType == "highVoltage") {
 					geoMeanDir2b.add(new H1D("GEOMEAN_S"+sectorNum+"_P"+paddleText, 150, 0.0, 3000.0));
-					logRatioDir2b.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 100, -3.0, 3.0));
+					logRatioDir2b.add(new H1D("LOGRATIO_S"+sectorNum+"_P"+paddleText, 80, -3.0, 3.0));
 				}
 				if (mRunType == "leftRight") {
-					leftRightDir2b.add(new H1D("LEFTRIGHT_S"+sectorNum+"_P"+paddleText,1500,-1500.0,1500.0));
+					leftRightDir2b.add(new H1D("LEFTRIGHT_S"+sectorNum+"_P"+paddleText,200,-1000.0,1000.0));
 				}
 				if (mRunType == "atten") {
 					// N.B. not sure these ranges are correct
@@ -1003,6 +1162,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 				
 		}
 		
+		initDone = true;
 	}
 	
 	private void processBank(EvioDataEvent event, String bankDescriptor, String subdirectory) {
@@ -1017,6 +1177,14 @@ public class FTOFCalibration extends DetectorMonitoring {
 			double tdcRight = (double)bank.getInt("TDCR",i);
 			int sector = bank.getInt("sector",i); 
 			int paddle = bank.getInt("paddle",i);
+			
+//			if (subdirectory=="ftof1a" && paddle==4) {
+//				sector=2;
+//			}
+//			if (subdirectory=="ftof1b" && paddle==56) {
+//				sector=4;
+//			}
+			
 			String paddleText = String.format("%02d", bank.getInt("paddle",i));
 
 			if (mRunType == "veff") {
@@ -1046,11 +1214,18 @@ public class FTOFCalibration extends DetectorMonitoring {
 					H1D geoMeanHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/geomean").getObject("GEOMEAN_S"+sector+"_P"+paddleText);
 					geoMeanHist.fill(geoMean);
 
-					if (geoMean > LOG_RATIO_X_THRESHOLD) {
+					if (geoMean > LOG_RATIO_X_THRESHOLD) {		
+					//if (geoMean > LOG_RATIO_X_THRESHOLD && geoMean < 12000) {
 
 						H1D logRatioHist = (H1D) getDir().getDirectory("calibration/"+subdirectory+"/logratio").getObject("LOGRATIO_S"+sector+"_P"+paddleText);
-						logRatioHist.fill(Math.log(adcRight/adcLeft));
-
+						
+						if (adcRight != adcLeft) {
+							logRatioHist.fill(Math.log(adcRight/adcLeft));
+						}
+//						else if (subdirectory=="ftof1a" && paddle==16){
+//							System.out.println("ADC equal "+adcRight+" "+adcLeft+" TDCs "+tdcRight+" "+tdcLeft);
+//						}
+							
 					}	
 //				}
 			}
@@ -1061,7 +1236,9 @@ public class FTOFCalibration extends DetectorMonitoring {
 				double timeLeft=tdcToTime(0,tdcLeft);
 				double timeRight=tdcToTime(0,tdcRight);
 				double vEff = 16; // default effective velocity to 16cm/ns
-				leftRightHist.fill((timeLeft-timeRight)*vEff);
+				if (timeLeft != timeRight) {
+					leftRightHist.fill((timeLeft-timeRight)*vEff);
+				}
 				
 			}
 				
@@ -1123,38 +1300,98 @@ public class FTOFCalibration extends DetectorMonitoring {
 //		
 //	}
 	
-	public void viewFits(int sector, int layer) {
+	public void viewFits(int sector, int layer, String plotType) {
 		
 		// Open up canvases to show all the fits
+
+		// Set the name of the histogram to be displayed
+		String dirName = "";
+		String histPrefix = "";
+		if (plotType == "geoMeanView") {
+			dirName = "/geomean";
+			histPrefix = "GEOMEAN_REBIN_S";
+		}
+		else if (plotType == "logRatioView") {
+			dirName = "/logratio";
+			histPrefix = "LOGRATIO_S";
+		} 
+		else if (plotType == "leftRight") {
+			dirName = "/leftright";
+			histPrefix = "LEFTRIGHT_S";
+		} 
 		
 		TCanvas[] fitCanvases;
 		fitCanvases = new TCanvas[3];
-		fitCanvases[0] = new TCanvas("All fits for sector 6","All fits for sector 6",1200,800,6,4);
+		fitCanvases[0] = new TCanvas("All fits for "+PANEL_NAME[layer]+" sector "+sector,"All fits for "+PANEL_NAME[layer]+" sector "+sector,1200,800,6,4);
 		fitCanvases[0].setFontSize(7);
 		fitCanvases[0].setDefaultCloseOperation(fitCanvases[0].HIDE_ON_CLOSE);
-
-		// tried adding mouse listener - doesn't do anything
- 
 		
 		int canvasNum = 0;
 		int padNum = 0;
 		
 		for (int paddleNum=0; paddleNum < NUM_PADDLES[layer]; paddleNum++) {
 			
-			//System.out.println("in loop. paddleNum = "+paddleNum+" canvasNum = "+canvasNum);
 			String fitPaddleText = String.format("%02d", paddleNum);
-			H1D fitHist = (H1D) this.getDir().getDirectory("calibration/"+PANEL_NAME[layer]+"/geomean").getObject("GEOMEAN_REBIN_S"+sector+"_P"+fitPaddleText);
-				
-			fitHist.setTitle("P "+fitPaddleText);
-
-    		F1D fitFunc = (F1D) this.getDir().getDirectory("calibration/"+PANEL_NAME[layer]+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+fitPaddleText);
-    		
-    		fitCanvases[canvasNum].cd(padNum);
+			H1D fitHist = (H1D) this.getDir().getDirectory("calibration/"+PANEL_NAME[layer]+dirName).getObject(histPrefix+sector+"_P"+fitPaddleText);
+			FTOFPaddle loopPaddle = mPaddles.get(sector+" "+layer+" "+paddleNum);
 			
+			if (fitHist==null) {
+				fitHist = new H1D();
+			}
+			
+			fitCanvases[canvasNum].cd(padNum);
     		fitHist.setLineColor(2);
-    		fitCanvases[canvasNum].draw(fitHist);
-    		fitCanvases[canvasNum].draw(fitFunc, "same");
-    		
+			fitHist.setTitle("P "+fitPaddleText);
+			fitCanvases[canvasNum].draw(fitHist);
+
+			if (plotType == "geoMeanView") {
+				F1D fitFunc = (F1D) this.getDir().getDirectory("calibration/"+PANEL_NAME[layer]+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+fitPaddleText);
+				if (fitFunc==null) {
+					fitFunc = new F1D("p1");
+				}
+	    		fitCanvases[canvasNum].draw(fitFunc, "same");
+
+			}
+			else if (plotType == "logRatioView") {
+
+				F1D logRatioFunc = (F1D) this.getDir().getDirectory("calibration/"+PANEL_NAME[layer]+"/logratio").getObject("LOGRATIO_FUNC_S"+sector+"_P"+fitPaddleText);
+				if (logRatioFunc==null) {
+					logRatioFunc = new F1D("p1");
+				}
+	    		fitCanvases[canvasNum].draw(logRatioFunc, "same");
+
+				DataSetXY meanPos = new DataSetXY();
+	    		meanPos.add(loopPaddle.getLogRatioPeak(), logRatioFunc.getParameter(0)*1.1);
+	    		meanPos.setMarkerColor(1);
+	    		meanPos.setMarkerStyle(1);
+	    		meanPos.setMarkerSize(5);
+	    		fitCanvases[canvasNum].draw(meanPos, "same");
+	    		
+			}
+			else if (plotType == "leftRight") {
+				
+	    		F1D leftRightFunc = (F1D) this.getDir().getDirectory("calibration/"+PANEL_NAME[layer]+"/leftright").getObject("LEFTRIGHT_FUNC_S"+sector+"_P"+fitPaddleText);
+	    		if (leftRightFunc==null) {
+					leftRightFunc = new F1D("p1");
+				}
+	    		fitCanvases[canvasNum].draw(leftRightFunc, "same");
+	    		
+	    		
+//	    		DataSetXY leftRightFuncData = leftRightFunc.getDataSet();
+
+//	    		canvas.cd(1);
+//	    		leftRightHist.setLineColor(2);
+//	    		canvas.draw(leftRightHist);
+//	    		leftRightFuncData.setMarkerColor(1);
+//	    		leftRightFuncData.setMarkerStyle(2);
+//	    		leftRightFuncData.setMarkerSize(3);
+//	    		canvas.draw(leftRightFuncData);
+//				
+//				
+//				F1D fitFunc = (F1D) this.getDir().getDirectory("calibration/"+PANEL_NAME[layer]+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+fitPaddleText);
+//	    		fitCanvases[canvasNum].draw(fitFunc, "same");
+			}
+			
     		padNum = padNum+1;
     		
     		if ((paddleNum+1)%24 == 0) {
@@ -1162,7 +1399,7 @@ public class FTOFCalibration extends DetectorMonitoring {
     			canvasNum = canvasNum+1;
     			padNum = 0;
     			
-	    		fitCanvases[canvasNum] = new TCanvas("All fits for sector 6","All fits for sector 6",1200,800,6,4);
+	    		fitCanvases[canvasNum] = new TCanvas("All fits for "+PANEL_NAME[layer]+" sector "+sector,"All fits for "+PANEL_NAME[layer]+" sector "+sector,1200,800,6,4);
 	    		fitCanvases[canvasNum].setFontSize(7);
 	    		fitCanvases[canvasNum].setDefaultCloseOperation(fitCanvases[canvasNum].HIDE_ON_CLOSE);
 
@@ -1171,13 +1408,36 @@ public class FTOFCalibration extends DetectorMonitoring {
 		}
 				
 	}
-		
+	
+	public String paddleText(int paddleNum) {
+		String paddleText = String.format("%02d", paddleNum);
+		return paddleText;
+	}
+	
+	public String titleString(int sector, int component) {
+		String titleString = "SECTOR " + sector  + " PADDLE " + component;
+		return titleString;
+	}
 	
 	public void drawComponent(final int sector, final int layer, final int component, final EmbeddedCanvas canvas){
 		
-		if ((sector==0)&&(component==0)) {
-			analyze();
+//		if ((sector==0)&&(component==0)) {
+//			analyze();
+//		}
+		
+		// Check if file has been loaded
+		if (!initDone) {
+			canvas.divide(1,1);
+			canvas.cd(0);
+			H1D hist = new H1D("Please select a file to process.","Please select a file to process.", 10,0.0,100.0);
+			canvas.draw(hist);
+			return;
 		}
+		
+		// Check if analyze has run
+		if (!analyzeDone) {
+			analyze();
+		}		
 		
 	    String titleString = "SECTOR " + sector  + " PADDLE " + component;
 		String paddleText = String.format("%02d", component);	    
@@ -1221,8 +1481,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 	    	if (mRunType == "highVoltage") {
 
 	    		canvas.divide(2,1);
-	  
-	    		
+
 	    		if (mViewType=="geoMeanView") {
 
 	    			H1D geoMeanSummHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_PEAK_ALL");
@@ -1234,9 +1493,18 @@ public class FTOFCalibration extends DetectorMonitoring {
 	    			canvas.draw(geoMeanSummHist);
 
 	    			H1D geoMeanHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_REBIN_S"+sector+"_P"+paddleText);
+	    			F1D geoMeanFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+paddleText);
+
+	    			// set histogram and function to default values if they've not been created
+	    			if (geoMeanHist==null) {
+	    				geoMeanHist = new H1D();
+	    			}
+	    			if (geoMeanFunc==null) {
+	    				geoMeanFunc = new F1D("p1");
+	    			}
+	    			
 	    			geoMeanHist.setTitle(titleString + ": Geometric Mean");
 
-	    			F1D geoMeanFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/geomean").getObject("GEOMEAN_FUNC_S"+sector+"_P"+paddleText);
 	    			DataSetXY funcData = geoMeanFunc.getDataSet();
 
 	    			canvas.cd(1);
@@ -1256,31 +1524,45 @@ public class FTOFCalibration extends DetectorMonitoring {
 	    			logSummHist.setXTitle("Paddle Number");
 	    			logSummHist.setYTitle("Log Ratio");
 
+	    			canvas.cd(0);
+	    			canvas.draw(logSummHist);
+	    			
 	    			H1D logRatioHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/logratio").getObject("LOGRATIO_S"+sector+"_P"+paddleText);
 	    			logRatioHist.setTitle(titleString + ": Log ratio");
 
-	    			canvas.cd(0);
-	    			canvas.draw(logSummHist);
-
 	    			canvas.cd(1);
+	    			logRatioHist.setLineColor(2);
 	    			canvas.draw(logRatioHist);
+	    			
+	    			
+	    			// Experiments - try showing the area used / the mean found
+		    		F1D logRatioFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/logratio").getObject("LOGRATIO_FUNC_S"+sector+"_P"+paddleText);
+		    		DataSetXY logRatioFuncData = logRatioFunc.getDataSet();
+		    		logRatioFuncData.setMarkerColor(1);
+		    		logRatioFuncData.setMarkerStyle(2);
+		    		logRatioFuncData.setMarkerSize(3);
+		    		canvas.draw(logRatioFuncData);
+		    		
+		    		DataSetXY meanPos = new DataSetXY();
+		    		meanPos.add(currentPaddle.getLogRatioPeak(), logRatioFunc.getParameter(0)*1.1);
+		    		meanPos.setMarkerColor(2);
+		    		meanPos.setMarkerStyle(2);
+		    		meanPos.setMarkerSize(5);
+		    		canvas.draw(meanPos);
+	    			
 	    		}
 
-	    		// Experiments
-
-	    		
-	    		
 	    		// Add a button to open up canvases with all fits
 	    		
 	    		JPanel controlPanel = new JPanel();
 	    		//controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.PAGE_AXIS));
-	    		controlPanel.setLayout(new GridLayout(4,1));
+	    		controlPanel.setLayout(new GridLayout(6,2));
 	    		
 	    		JButton viewFitsButton = new JButton("View all fits for sector");
 	    		viewFitsButton.setPreferredSize(new Dimension(200,40));
 	    		viewFitsButton.addActionListener(new java.awt.event.ActionListener() {
 	    		    public void actionPerformed(java.awt.event.ActionEvent evt) {
-	    		    	viewFits(sector, layer);	    		    	
+	    		    	viewFits(sector, layer, mViewType);	    		    	
 	    		    }
 	    		});
 	    		controlPanel.add(viewFitsButton);
@@ -1297,16 +1579,6 @@ public class FTOFCalibration extends DetectorMonitoring {
 	    		    }
 	    		});
 	    		controlPanel.add(geoMeanButton);
-
-	    		JButton logRatioButton = new JButton("View Log Ratio");
-	    		logRatioButton.setPreferredSize(new Dimension(160,40));
-	    		logRatioButton.addActionListener(new java.awt.event.ActionListener() {
-	    		    public void actionPerformed(java.awt.event.ActionEvent evt) {
-	    		    	mViewType = "logRatioView";
-	    		    	drawComponent(sector, layer, component, canvas);
-	    		    }
-	    		});
-	    		controlPanel.add(logRatioButton);
 	    		
 	    		// Adjust fit values
 	    		
@@ -1315,7 +1587,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 	    		adjustFitButton.addActionListener(new java.awt.event.ActionListener() {
 	    		    public void actionPerformed(java.awt.event.ActionEvent evt) {
 		    			
-		    			// Try adding a box to take text input of new fit values
+		    			// Add a box to take text input of new fit values
 		    			JTextField minField = new JTextField(5);
 		    			JTextField maxField = new JTextField(5);
 
@@ -1332,70 +1604,250 @@ public class FTOFCalibration extends DetectorMonitoring {
 		    				
 		    				currentPaddle.setGeoMeanFitMin(Double.parseDouble(minField.getText()));
 		    				currentPaddle.setGeoMeanFitMax(Double.parseDouble(maxField.getText()));
-		    				fitGain(PANEL_NAME[layer],sector, component, currentPaddle);
+		    				fitGain(PANEL_NAME[layer],sector, layer, component, currentPaddle);
 		    				drawComponent(sector, layer, component, canvas);
 		    			}	    		    	
 	    		    }
 	    		});
-	    		controlPanel.add(adjustFitButton);
-	    		
-	    		// try a table of all the calibration values...
-	    		
-	    		final CustomCellRenderer renderer = new CustomCellRenderer();
-	    		
-	    		final JPanel tablePanel = new JPanel();
+	    		controlPanel.add(adjustFitButton);	    		
 
-	    		final JTable table = new JTable(new DefaultTableModel(new Object[]{"Paddle Number", "Geometric Mean Peak", "Reduced Chi Squared"},0) {
-	    			public Class getColumnClass(int column) { // table model method overrides...
-	    				return Integer.class;
-	    				}
+	    		JButton logRatioButton = new JButton("View Log Ratio");
+	    		logRatioButton.setPreferredSize(new Dimension(160,40));
+	    		logRatioButton.addActionListener(new java.awt.event.ActionListener() {
+	    		    public void actionPerformed(java.awt.event.ActionEvent evt) {
+	    		    	mViewType = "logRatioView";
+	    		    	drawComponent(sector, layer, component, canvas);
+	    		    }
+	    		});
+	    		controlPanel.add(logRatioButton);
+	    		
+
+	    		
+        		// try adding display of calibration status and button to write to file
+        			    		
+	    		JLabel[] sectorLabels = {null,  null, null, null, null, null};
+	    		Color lightGreen = new Color(0x40, 0xFF, 0x40);
+	    		for (int i=0; i<6; i++) {
+	    			if (sectorComplete[layer][i]) {
+	    				sectorLabels[i] = new JLabel("Sector "+i+" complete");
+		    			sectorLabels[i].setOpaque(true);
+	    				sectorLabels[i].setBackground(lightGreen);
 	    			}
-
-	    			) { // table method overrides...
-
-	    			@Override
-	    			public TableCellRenderer getCellRenderer(int row, int column) {
-	    				return renderer;
+	    			else {
+	    				sectorLabels[i] = new JLabel("Sector "+i+" - TO DO");
+		    			sectorLabels[i].setOpaque(true);
+	    				sectorLabels[i].setBackground(Color.LIGHT_GRAY);
 	    			}
-	    		};
-	    		table.setAutoCreateRowSorter(true);
-	    		
-    			DefaultTableModel model = (DefaultTableModel) table.getModel();
-
-	    		for (int i=0; i < NUM_PADDLES[layer]; i++) {
-	    		
-	    			FTOFPaddle loopPaddle = mPaddles.get(sector+" "+layer+" "+i);
-	    			
-	    			model.addRow(new Object[]{i,Integer.parseInt(new DecimalFormat("#").format(loopPaddle.getGeometricMeanPeak())),
-	    								Integer.parseInt(new DecimalFormat("#").format(loopPaddle.getGeometricMeanError()))});
-		
+	    			sectorLabels[i].setHorizontalAlignment(JTextField.CENTER);
+	    			sectorLabels[i].setBorder(BorderFactory.createLineBorder(Color.black));	    			
+	    			controlPanel.add(sectorLabels[i]);
 	    		}
-
-	    		// sort the table as per users last sort operation
-	    		table.getRowSorter().setSortKeys(mSortKey);
 	    		
-	    		JScrollPane tableContainer = new JScrollPane(table);
-	            tablePanel.add(tableContainer);
-	            
-	            table.addMouseListener(new java.awt.event.MouseAdapter()
-
-	            {
-	            	public void mouseClicked(java.awt.event.MouseEvent e)
-	            	{
-	            		int row=table.rowAtPoint(e.getPoint());
-	            		int paddleClicked = Integer.parseInt(table.getValueAt(row,0).toString());
-	            		
-	            		mSortKey = table.getRowSorter().getSortKeys(); 
-	            		mSelectedRow = table.getSelectedRow();
-	            		
-	            		drawComponent(sector, layer, paddleClicked, canvas);	            		
-	            	}
-	            });
-	            
+	    		JButton completeButton = new JButton();
+	    		if (sectorComplete[layer][sector]) {
+	    			completeButton.setText("Mark sector "+sector+" incomplete");
+	    			completeButton.addActionListener(new java.awt.event.ActionListener() {
+	    				public void actionPerformed(java.awt.event.ActionEvent evt) {
+	    					sectorComplete[layer][sector] = false;
+	    					drawComponent(sector, layer, component, canvas);
+	    				}
+	    			});
+	    		}
+	    		else {
+	    			completeButton.setText("Mark sector "+sector+" complete");
+	    			completeButton.addActionListener(new java.awt.event.ActionListener() {
+	    				public void actionPerformed(java.awt.event.ActionEvent evt) {
+	    					sectorComplete[layer][sector] = true;
+	    					drawComponent(sector, layer, component, canvas);
+	    				}
+	    			});	    			
+	    		}
+	    		controlPanel.add(completeButton);	    		
+	    		
+	    		JButton writeButton = new JButton("Write calibration values to file");
+	    		if (calibComplete()) {
+	    			writeButton.addActionListener(new java.awt.event.ActionListener() {
+	    				public void actionPerformed(java.awt.event.ActionEvent evt) {
+	    					writeToFile();	    		    	
+	    				}
+	    			});
+	    		}
+	    		else {
+	    			writeButton.setEnabled(false);
+	    			writeButton.setText("Write calibration values to file");
+	    			writeButton.setToolTipText("Calibration must be marked complete for all sectors before writing to file");
+	    		}
+	    		controlPanel.add(writeButton);
+	    		
 	    		canvas.add(controlPanel);
-	    		canvas.add(tablePanel);
-        		tablePanel.requestFocus();
-        		table.changeSelection(mSelectedRow, 1, false, false);
+	    		
+	    		// Add a table of all the calibration values...
+	    		
+	    		if (mViewType=="geoMeanView") {
+	    			
+	    			// custom renderer for highlighting bad values in red
+		    		final GeoMeanRenderer renderer = new GeoMeanRenderer();
+		    		
+		    		// Create a talbe
+		    		final JPanel tablePanel = new JPanel();
+		    		final JTable table = new JTable(new DefaultTableModel(new Object[]{"Paddle Number", "Geometric Mean Peak", "Reduced Chi Squared"},0) {
+		    			public Class getColumnClass(int column) { // table model method overrides...
+		    				return Integer.class; // require this so that sort works correctly
+		    				}
+		    			}
+		    			) { // table method overrides...
+		    			@Override
+		    			public TableCellRenderer getCellRenderer(int row, int column) {
+		    				return renderer;
+		    			}
+		    		};
+		    		table.setAutoCreateRowSorter(true);
+		    		
+	    			DefaultTableModel model = (DefaultTableModel) table.getModel();
+	
+		    		for (int i=0; i < NUM_PADDLES[layer]; i++) {
+		    		
+		    			FTOFPaddle loopPaddle = mPaddles.get(sector+" "+layer+" "+i);
+		    			
+		    			model.addRow(new Object[]{i,Integer.parseInt(new DecimalFormat("#").format(loopPaddle.getGeometricMeanPeak())),
+		    								Double.parseDouble(new DecimalFormat("0.0").format(loopPaddle.getGeometricMeanRedChiSq()))});
+			
+		    		}
+		    		
+		    		JScrollPane tableContainer = new JScrollPane(table);
+		            tablePanel.add(tableContainer);
+		            
+		            // Is it easier to use selection listener??
+		            // Messes up the selection via graphic, and selection after sorting
+		            
+		            table.getSelectionModel().addListSelectionListener(new ListSelectionListener() {
+		            	public void valueChanged(ListSelectionEvent e) {
+		            		if (e.getValueIsAdjusting())
+		            			return; // if you don't want to handle intermediate selections
+		            		ListSelectionModel rowSM = (ListSelectionModel)e.getSource();
+		            		int selectedIndex = rowSM.getMinSelectionIndex();
+		            		
+		            		int paddleClicked = Integer.parseInt(table.getValueAt(selectedIndex,0).toString());
+		            		if (paddleClicked != component) {
+		            			drawComponent(sector, layer, paddleClicked, canvas);
+		            		}
+		            	}
+		            });
+		            
+		            table.getRowSorter().addRowSorterListener(new RowSorterListener() {
+		            	 public void sorterChanged(RowSorterEvent e) {
+		            		 mSortKey = table.getRowSorter().getSortKeys();
+		            		// scroll to the selected row
+		 		    		Rectangle rect = 
+		 		    				   table.getCellRect(table.getSelectedRow(), 0, true);
+		 		    		table.scrollRectToVisible(rect);
+		            		 
+                         }
+		            });
+		            		            
+//		            table.addMouseListener(new java.awt.event.MouseAdapter()
+//	
+//		            {
+//		            	public void mouseClicked(MouseEvent e)
+//		            	{
+//		            		//int row=table.rowAtPoint(e.getPoint());
+//		            		mSelectedRow=table.getSelectedRow();
+//	            			int paddleClicked = Integer.parseInt(table.getValueAt(table.getSelectedRow(),0).toString());
+//		            		drawComponent(sector, layer, paddleClicked, canvas);	            		
+//		            	}
+//		            });
+//		            
+//		            table.addKeyListener(new java.awt.event.KeyAdapter() 
+//		            {
+//		            	public void keyReleased(KeyEvent e) {
+//		            		mSelectedRow=table.getSelectedRow();
+//	            			int paddleClicked = Integer.parseInt(table.getValueAt(table.getSelectedRow(),0).toString());
+//	            			drawComponent(sector, layer, paddleClicked, canvas);
+//		            	}
+//		            });
+		            
+		    		canvas.add(tablePanel);
+		    		
+		    		// sort the table as per users last sort operation
+		    		table.getRowSorter().setSortKeys(mSortKey);
+		    		
+		    		// select the row corresponding to the current paddle
+		    		int rows = table.getRowCount();
+		    		for (int i=0; i<rows; i++) {
+		    			if (Integer.parseInt(table.getValueAt(i,0).toString()) == component) {
+		    				table.changeSelection(i, 0, false, false);
+		    			}
+		    		}
+		    				    		
+		    		// scroll to the selected row
+		    		Rectangle rect = 
+		    				   table.getCellRect(table.getSelectedRow(), 0, true);
+		    		table.scrollRectToVisible(rect);
+		    		
+	        		table.requestFocus();
+	    		}
+	    		
+	    		else if (mViewType=="logRatioView") {
+		    		//final CustomCellRenderer renderer = new CustomCellRenderer();
+		    		
+		    		final JPanel tablePanel = new JPanel();
+	
+		    		final JTable table = new JTable(new DefaultTableModel(new Object[]{"Paddle Number", "Log Ratio Mean", "Log Ratio Error"},0) {
+		    			public Class getColumnClass(int column) { // table model method overrides...
+		    				return Double.class;
+		    				}
+		    			}	
+		    			);
+		    		
+		    		table.setAutoCreateRowSorter(true);
+		    		
+	    			DefaultTableModel model = (DefaultTableModel) table.getModel();
+	
+		    		for (int i=0; i < NUM_PADDLES[layer]; i++) {
+		    		
+		    			FTOFPaddle loopPaddle = mPaddles.get(sector+" "+layer+" "+i);
+		    			
+		    			model.addRow(new Object[]{i,loopPaddle.getLogRatioPeak(),
+		    								loopPaddle.getLogRatioError()});
+			
+		    		}
+	
+		    		// sort the table as per users last sort operation
+		    		table.getRowSorter().setSortKeys(mSortKey);
+		    		
+		    		JScrollPane tableContainer = new JScrollPane(table);
+		            tablePanel.add(tableContainer);
+		            
+		            table.addMouseListener(new java.awt.event.MouseAdapter()
+	
+		            {
+		            	public void mouseClicked(java.awt.event.MouseEvent e)
+		            	{
+		            		int row=table.rowAtPoint(e.getPoint());
+		            		int paddleClicked = Integer.parseInt(table.getValueAt(row,0).toString());
+		            		
+		            		mSortKey = table.getRowSorter().getSortKeys(); 
+		            		//mSelectedRow = table.getSelectedRow();
+		            		
+		            		drawComponent(sector, layer, paddleClicked, canvas);	            		
+		            	}
+		            });
+		            
+		            table.addKeyListener(new java.awt.event.KeyAdapter() 
+		            {
+		            	public void keyReleased(KeyEvent e) {
+	            			//mSelectedRow=table.getSelectedRow();
+	            			//int paddleClicked = Integer.parseInt(table.getValueAt(mSelectedRow,0).toString());
+	            			//drawComponent(sector, layer, paddleClicked, canvas);
+		            	}
+		            });		            
+		            
+		    		canvas.add(controlPanel);
+		    		canvas.add(tablePanel);
+	        		//table.changeSelection(mSelectedRow, 1, false, false);
+	        		table.requestFocus();
+	        		
+	    		}
 	    		
 	    	}
 	    	
@@ -1430,7 +1882,7 @@ public class FTOFCalibration extends DetectorMonitoring {
 	    		
 	    		H1D leftRightHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/leftright").getObject("LEFTRIGHT_S"+sector+"_P"+paddleText);
 	    		leftRightHist.setTitle(titleString + ": Left Right");
-	    		leftRightHist.setXTitle("(Time Left-Time Right) * Effective Velocity");
+	    		//leftRightHist.setXTitle("(Time Left-Time Right) * Effective Velocity");
 	    		
 	    		F1D leftRightFunc = (F1D) this.getDir().getDirectory("calibration/"+panelName+"/leftright").getObject("LEFTRIGHT_FUNC_S"+sector+"_P"+paddleText);
 	    		DataSetXY leftRightFuncData = leftRightFunc.getDataSet();
@@ -1443,56 +1895,89 @@ public class FTOFCalibration extends DetectorMonitoring {
 	    		leftRightFuncData.setMarkerSize(3);
 	    		canvas.draw(leftRightFuncData);
 	    		
+	    		// Add a button to open up canvases with all fits
 	    		
-	    		// Experiments
+	    		JPanel controlPanel = new JPanel();
+	    		//controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.PAGE_AXIS));
+	    		controlPanel.setLayout(new GridLayout(4,1));
 	    		
+	    		JButton viewFitsButton = new JButton("View all fits for sector");
+	    		viewFitsButton.setPreferredSize(new Dimension(200,40));
+	    		viewFitsButton.addActionListener(new java.awt.event.ActionListener() {
+	    		    public void actionPerformed(java.awt.event.ActionEvent evt) {
+	    		    	viewFits(sector, layer, "leftRight");	    		    	
+	    		    }
+	    		});
+	    		controlPanel.add(viewFitsButton);
+	    		canvas.add(controlPanel);
 	    		
-	    		// Can display a popup but it freezes the screen until you click it...
+	    		// Table of leftright values
+	    		final leftRightRenderer renderer = new leftRightRenderer();
 	    		
-//	    		PopupMenu popup = new PopupMenu();
-//	    		MenuItem mi = new MenuItem("Louise popup");
-//	    		popup.add(mi);
-//	    		canvas.add(popup);
-//	    		popup.show(canvas, 0, 0);
-	    		
-	    		
-	    		// This kind of works - displays a button which opens up a new canvas
-	    		// Lots of java errors though...
-	    		
-//	    		JButton button = new JButton("Louise button");
-//	    		button.addActionListener(new java.awt.event.ActionListener() {
-//	    		    public void actionPerformed(java.awt.event.ActionEvent evt) {
-//	    		    	TCanvas c1 = new TCanvas("Geometric Mean","Geometric Mean",1200,800,2,3);
-//	    	    		c1.setTitle("View Paddles");
-//	    	    		canvas.add(c1);
-//	    		    }
-//	    		});
-//	    		canvas.add(button);
-	    		
-	    		
-	    		EmbeddedCanvas c1 = new EmbeddedCanvas();
-	    		c1.divide(2, 2);
-	    		for (int i=0; i<4; i++) {
-	    			String iText = String.format("%02d", i);	
-	    			H1D pstampHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/leftright").getObject("LEFTRIGHT_S"+sector+"_P"+iText);
-	    			pstampHist.setTitle("P"+iText);
-	    			pstampHist.setXTitle("");
-	    			pstampHist.setYTitle("");
-	    			c1.cd(i);
-	    			c1.draw(pstampHist);
-	    		}
-	    		canvas.add(c1);
+	    		final JPanel tablePanel = new JPanel();
 
-	    		EmbeddedCanvas c2 = new EmbeddedCanvas();
-	    		c2.divide(2, 2);
-	    		for (int i=0; i<4; i++) {
-	    			String iText = String.format("%02d", i+4);	
-	    			H1D pstampHist = (H1D) this.getDir().getDirectory("calibration/"+panelName+"/leftright").getObject("LEFTRIGHT_S"+sector+"_P"+iText);
+	    		final JTable table = new JTable(new DefaultTableModel(new Object[]{"Paddle Number", "Left Edge", "Left Edge Error", "Right Edge", "Right Edge Error"},0) {
+	    			public Class getColumnClass(int column) { // table model method overrides...
+	    				return Double.class;
+	    				}
+	    			}) { // table method overrides...
 	    			
-	    			c2.cd(i);
-	    			c2.draw(pstampHist);
+	    			@Override
+	    			public TableCellRenderer getCellRenderer(int row, int column) {
+	    				return renderer;
+	    			}
+	    		};
+	    		
+	    		table.setAutoCreateRowSorter(true);
+	    		
+    			DefaultTableModel model = (DefaultTableModel) table.getModel();
+
+	    		for (int i=0; i < NUM_PADDLES[layer]; i++) {
+	    		
+	    			FTOFPaddle loopPaddle = mPaddles.get(sector+" "+layer+" "+i);
+	    			
+	    			model.addRow(new Object[]{i,loopPaddle.getLRLeftEdge(),
+	    									    loopPaddle.getLRLeftEdgeError(),
+	    									    loopPaddle.getLRRightEdge(),
+	    									    loopPaddle.getLRRightEdgeError()
+	    									 });
+		
 	    		}
-	    		canvas.add(c2);
+
+	    		// sort the table as per users last sort operation
+	    		table.getRowSorter().setSortKeys(mSortKey);
+	    		
+	    		JScrollPane tableContainer = new JScrollPane(table);
+	            tablePanel.add(tableContainer);
+	            
+	            table.addMouseListener(new java.awt.event.MouseAdapter()
+
+	            {
+	            	public void mouseClicked(java.awt.event.MouseEvent e)
+	            	{
+	            		int row=table.rowAtPoint(e.getPoint());
+	            		int paddleClicked = Integer.parseInt(table.getValueAt(row,0).toString());
+	            		
+	            		mSortKey = table.getRowSorter().getSortKeys(); 
+	            		//mSelectedRow = table.getSelectedRow();
+	            		
+	            		drawComponent(sector, layer, paddleClicked, canvas);	            		
+	            	}
+	            });
+	            
+	            table.addKeyListener(new java.awt.event.KeyAdapter() 
+	            {
+	            	public void keyReleased(KeyEvent e) {
+            			//mSelectedRow=table.getSelectedRow();
+            			//int paddleClicked = Integer.parseInt(table.getValueAt(mSelectedRow,0).toString());
+            			//drawComponent(sector, layer, paddleClicked, canvas);
+	            	}
+	            });	            
+	            
+	    		canvas.add(controlPanel);
+	    		canvas.add(tablePanel);
+        		table.requestFocus();
+        		//table.changeSelection(mSelectedRow, 1, false, false);
 	    		
 	    	}
 	    	
@@ -1557,13 +2042,14 @@ public class FTOFCalibration extends DetectorMonitoring {
 
 	}	
 
-	private class CustomCellRenderer extends DefaultTableCellRenderer {
+	private class GeoMeanRenderer extends DefaultTableCellRenderer {
 		public Component getTableCellRendererComponent(JTable table, Object value,
 				boolean isSelected, boolean hasFocus, int row, int column) {
 
 			Component rendererComp = super.getTableCellRendererComponent(table, value, isSelected, hasFocus,
 					row, column);
-			if ((Integer) table.getValueAt(row, 2) > 10) {
+			
+			if ((Double) table.getValueAt(row, 2) > 10) {
 				//Set foreground color
 				rendererComp.setForeground(Color.red);
 			}
@@ -1575,6 +2061,26 @@ public class FTOFCalibration extends DetectorMonitoring {
 		}
 
 	}
+	
+	private class leftRightRenderer extends DefaultTableCellRenderer {
+		public Component getTableCellRendererComponent(JTable table, Object value,
+				boolean isSelected, boolean hasFocus, int row, int column) {
+
+			Component rendererComp = super.getTableCellRendererComponent(table, value, isSelected, hasFocus,
+					row, column);
+			
+			if ((Math.abs((Double) table.getValueAt(row, 2)) > 10) || (Math.abs((Double) table.getValueAt(row, 4)) > 10)) {
+				//Set foreground color
+				rendererComp.setForeground(Color.red);
+			}
+			else {
+				rendererComp.setForeground(Color.black);
+			}
+
+			return rendererComp ;
+		}
+
+	}	
 
 	public static void main(String[] args) {
 	
