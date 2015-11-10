@@ -47,7 +47,7 @@ public class SampleCalibration implements IDetectorListener,IConstantsTableListe
         this.initDetector();
         this.init();
         
-        TStyle.setFrameFillColor(255, 245, 245);
+        TStyle.setFrameFillColor(235, 255, 245);
         TStyle.setFrameBackgroundColor(245, 255, 245);
     }
     
@@ -55,8 +55,13 @@ public class SampleCalibration implements IDetectorListener,IConstantsTableListe
     
     public void init(){
         this.calibPane.getCanvasPane().add(canvas);
+        
+        
         this.constantsTable = new ConstantsTable(DetectorType.LTCC,
                 new String[]{"Peak Mean","Mean Error","Peak Sigma","Sigma Error"});
+        
+        
+        
         this.tdcHistograms.setName("LTCC_TDC");
         for(int sector = 0; sector < 6; sector++){
             for(int region = 0; region < 8; region++){
@@ -93,8 +98,8 @@ public class SampleCalibration implements IDetectorListener,IConstantsTableListe
         for(int sector = 0; sector < 6; sector++){
             for(int region = 0; region < 8; region++){
                 for(int half = 0; half < 2; half++){
-                    double arcStart = 40 + region*60;
-                    double arcEnd   = 40 + (region+1)*60;
+                    double arcStart = 280 + region*60;
+                    double arcEnd   = 280 + (region+1)*60;
                     double midAngle = sector*60;
                     double rotation = Math.toRadians(midAngle);
                     DetectorShape2D  shape = new DetectorShape2D(DetectorType.LTCC,sector,region,half);
