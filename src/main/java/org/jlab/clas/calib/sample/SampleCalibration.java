@@ -24,6 +24,10 @@ import org.jlab.clas12.calib.DetectorDatasetPane;
 import org.jlab.clas12.calib.DetectorShape2D;
 import org.jlab.clas12.calib.DetectorShapeView2D;
 import org.jlab.clas12.calib.IDetectorListener;
+import org.jlab.clasrec.main.DataEventProcessorDialog;
+import org.jlab.clasrec.main.DataEventProcessorThread;
+import org.jlab.clasrec.main.IDataEventProcessor;
+import org.jlab.data.io.DataEvent;
 import org.root.attr.TStyle;
 import org.root.histogram.H1D;
 import org.root.pad.EmbeddedCanvas;
@@ -33,7 +37,8 @@ import org.root.pad.TBookCanvas;
  *
  * @author gavalian
  */
-public class SampleCalibration implements IDetectorListener,IConstantsTableListener,ActionListener {
+public class SampleCalibration implements IDetectorListener,
+        IConstantsTableListener,ActionListener, IDataEventProcessor {
     
     private EmbeddedCanvas   canvas = new EmbeddedCanvas();    
     private CalibrationPane  calibPane = new CalibrationPane();
@@ -72,6 +77,9 @@ public class SampleCalibration implements IDetectorListener,IConstantsTableListe
                                 200,0.0,4000.0));
             }
         }
+        
+        
+        
         this.constantsTablePanel = new ConstantsTablePanel(this.constantsTable);
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
@@ -82,12 +90,16 @@ public class SampleCalibration implements IDetectorListener,IConstantsTableListe
         JButton buttonProc = new JButton("Process");
         buttonProc.addActionListener(this);
         
+        JButton buttonProcEt  = new JButton("Process ET");
+        buttonProcEt.addActionListener(this);
+        
         JButton buttonTDC = new JButton("Show TDC");
         buttonTDC.addActionListener(this);
         
         
         this.calibPane.getBottonPane().add(buttonFit);
         this.calibPane.getBottonPane().add(buttonProc);
+        this.calibPane.getBottonPane().add(buttonProcEt);
         this.calibPane.getBottonPane().add(buttonTDC);
 
     }
@@ -144,6 +156,29 @@ public class SampleCalibration implements IDetectorListener,IConstantsTableListe
             System.out.println("---> I think you want me to fit something.");
         }
         
+        if(e.getActionCommand().compareTo("Process")==0){
+            
+            System.out.println("---> I think you want me to fit something.");
+            DataEventProcessorDialog.runProcess(this);
+            // This commented section is used to run on specific file in background mode
+            /*String filename = "/Users/gavalian/Work/Software/Release-8.0/COATJAVA/coatjava/../etaPXSection_0_recon.evio";
+            DataEventProcessorThread thread = new DataEventProcessorThread();
+            thread.setFileName(filename);
+            thread.addProcessor(this);
+            thread.start();*/
+        }
+        
+        
+        if(e.getActionCommand().compareTo("Process ET")==0){
+            //System.out.println("---> I think you want me to fit something.");
+            //DataEventProcessorDialog.runProcess(this);
+            
+            DataEventProcessorThread thread = new DataEventProcessorThread();
+            thread.setFileName("adcecal2:/tmp/et_sys_clasprod2");
+            thread.addProcessor(this);
+            thread.start();
+        }
+        
         if(e.getActionCommand().compareTo("Show TDC")==0){
             DetectorDatasetPane.showDialog(this.tdcHistograms);            
         }
@@ -157,5 +192,11 @@ public class SampleCalibration implements IDetectorListener,IConstantsTableListe
         frame.add(calib.getView());
         frame.pack();
         frame.setVisible(true);
+    }
+
+    public void process(DataEvent de) {
+        System.out.println("running LTCC code");
+        //if(de.hasBank("LTCC")==true){
+        //}
     }
 }
