@@ -34,6 +34,22 @@ public class DataProvider {
                 paddleList.add(paddle);
             }
         }
+        if(event.hasBank("FTOF1B::dgtz")==true){
+            EvioDataBank bank = (EvioDataBank) event.getBank("FTOF1B::dgtz");
+            for(int loop = 0; loop < bank.rows(); loop++){
+                TOFPaddle  paddle = new TOFPaddle(
+                        bank.getInt("sector", loop),
+                        1,
+                        bank.getInt("paddle", loop),
+                        bank.getInt("ADCL", loop),
+                        bank.getInt("ADCR", loop),
+                        bank.getInt("TDCL", loop),
+                        bank.getInt("TDCR", loop)
+                        
+                );
+                paddleList.add(paddle);
+            }
+        }
         return paddleList;
     }
 }
