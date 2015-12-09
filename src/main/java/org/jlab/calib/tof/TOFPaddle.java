@@ -41,10 +41,31 @@ public class TOFPaddle {
     }
     
     public double geometricMean(){
-        return Math.sqrt(this.ADCL*this.ADCR);
+        return Math.sqrt(ADCL*ADCR);
+    }
+    
+    public double logRatio(){
+    	return Math.log((double)ADCR/(double)ADCL);
+    }
+    
+    public boolean isValidLogRatio() {
+    	// only if geometric mean is over a minimum
+		// only if both TDCs are non-zero - otherwise ADCs are equal and log ratio is always 0
+    	//return (this.geometricMean() > 500.0) && (TDCL != 0) && (TDCR != 0);
+    	return (this.geometricMean() > 500.0) && (ADCR != ADCL);
     }
     
     public DetectorDescriptor getDescriptor(){ return this.desc;}
+    
+    public String toString() {
+    	return "S " + desc.getSector() + " L " + desc.getLayer() + " C " + desc.getComponent() +
+    		   " ADCR " + ADCR +
+    		   " ADCL " + ADCL +
+    		   " TDCR " + TDCR +
+    		   " TDCL " + TDCL +
+    		   " Geometric Mean " + geometricMean() +
+    		   " Log ratio " + logRatio();
+    }
     
     
 }

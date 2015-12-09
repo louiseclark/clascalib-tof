@@ -22,38 +22,13 @@ import org.root.histogram.H1D;
  */
 public class TOFCustomFitPanel extends JPanel {
 
-	F1D f1 = null;
-	H1D h1 = null;
-	int numParams;
 	JTextField minRange = new JTextField(5);
 	JTextField maxRange = new JTextField(5);
-//	JTextField[] parField = new JTextField[numParams];
 	
 	
-	public TOFCustomFitPanel(H1D h, F1D f){
-
-		f1 = f;
-		h1 = h;
+	public TOFCustomFitPanel(){
 		
-		//numParams = f.getNParams();
-		//this.setLayout(new GridLayout(numParams+7,2));
 		this.setLayout(new GridLayout(4,2));
-//		this.add(new JLabel("Function parameters for:"));
-//		this.add(new JLabel("landau+exp"));
-//		
-//		this.add(Box.createHorizontalStrut(15)); // a spacer
-//		this.add(Box.createHorizontalStrut(15)); // a spacer
-//		
-//		// Create fields for all function parameters
-//		for (int parNum=0; parNum<numParams; parNum++) {
-//
-//			this.add(new JLabel("Parameter "+parNum+":"));
-//			parField[parNum] = new JTextField(5);
-//			this.add(parField[parNum]);
-//		}
-//		
-//		this.add(Box.createHorizontalStrut(15)); // a spacer
-//		this.add(Box.createHorizontalStrut(15)); // a spacer
 		
 		// Create fields for function range
 		this.add(new JLabel("Function range"));
@@ -68,8 +43,4 @@ public class TOFCustomFitPanel extends JPanel {
 		this.add(maxRange);
 	}
 	
-//	public void fit(){
-//		f1.setRange(3000, 5000);
-//		h1.fit(f1);
-//	}
 }

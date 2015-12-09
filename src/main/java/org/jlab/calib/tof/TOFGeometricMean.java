@@ -143,7 +143,7 @@ public class TOFGeometricMean {
 		H1D h = getH1D(sector, layer, paddle);
 		F1D f = getF1D(sector, layer, paddle);        
 		
-		TOFCustomFitPanel panel = new TOFCustomFitPanel(h,f);
+		TOFCustomFitPanel panel = new TOFCustomFitPanel();
 
 		int result = JOptionPane.showConfirmDialog(null, panel, 
 				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
