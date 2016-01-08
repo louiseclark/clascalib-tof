@@ -1,13 +1,7 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package org.jlab.calib.tof;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.TreeMap;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -24,15 +18,9 @@ import org.jlab.clas12.calib.DetectorShapeView2D;
 import org.jlab.clas12.calib.IDetectorListener;
 import org.jlab.evio.clas12.EvioDataEvent;
 import org.jlab.evio.clas12.EvioSource;
-import org.root.func.F1D;
-import org.root.histogram.H1D;
 import org.root.pad.EmbeddedCanvas;
 
-/**
- *
- * @author gavalian
- */
-public class TOFCalibration implements IDetectorListener,IConstantsTableListener,ActionListener {
+public class TOFCalAtten implements IDetectorListener,IConstantsTableListener,ActionListener {
     
     private EmbeddedCanvas   		canvas = new EmbeddedCanvas();
     
@@ -41,13 +29,13 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     private ConstantsTable   		constantsTable = null;
     private ConstantsTablePanel   	constantsTablePanel = null;
 
-    private TOFHighVoltage hv = new TOFHighVoltage();
+    private TOFAtten atten = new TOFAtten();
     
     public static final int[]		NUM_PADDLES = {23,62,5};
     public static final String[]	LAYER_NAME = {"FTOF1A","FTOF1B","FTOF2B"};
         
     
-    public TOFCalibration(){
+    public TOFCalAtten(){
         this.initDetector();
         this.init();
     }
@@ -57,7 +45,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     public void init(){
         this.calibPane.getCanvasPane().add(canvas);
         this.constantsTable = new ConstantsTable(DetectorType.FTOF,
-                new String[]{"Geometric Mean Peak","Log Ratio Mean"});
+                new String[]{"Slope","Intercept"});
 
         this.constantsTablePanel = new ConstantsTablePanel(this.constantsTable);
         this.constantsTablePanel.addListener(this);        
@@ -72,10 +60,10 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         this.calibPane.getBottonPane().add(buttonFit);
         this.calibPane.getBottonPane().add(buttonViewAll);
         
-        hv.init();
-        processFile(hv);
-        hv.drawComponent(5, 0, 0, canvas);
-        hv.fillTable(0, 1, constantsTable);
+        atten.init();
+        processFile(atten);
+        atten.drawComponent(5, 0, 0, canvas);
+        atten.fillTable(0, 1, constantsTable);
         
     }
     
@@ -115,13 +103,13 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         int layer =  dd.getLayer();
         int paddle = dd.getComponent();
 
-        hv.drawComponent(sector, layer, paddle, canvas);
+        atten.drawComponent(sector, layer, paddle, canvas);
         
         // If the sector or layer has changed then redraw the table
         if (sector != Integer.parseInt((String)constantsTable.getValueAt(0, 1)) ||
         	layer != Integer.parseInt((String)constantsTable.getValueAt(0, 2))) {
         	System.out.println("Refilling table with sector " + sector + " layer " + layer );
-        	hv.fillTable(sector, layer, constantsTable);
+        	atten.fillTable(sector, layer, constantsTable);
         	constantsTablePanel.repaint();
         }
         
@@ -130,27 +118,27 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     public void update(DetectorShape2D dsd) {
     	// check any constraints
     	
-        if (hv.getCalibrationValue(dsd.getDescriptor().getSector(), 
-        						   dsd.getDescriptor().getLayer(), 
-        						   dsd.getDescriptor().getComponent(), hv.GEOMEAN, 1) > 1000.0) {
-        	dsd.setColor(255, 153, 51); // amber
-        	
-        }
-        else if(dsd.getDescriptor().getComponent()%2==0){
-            dsd.setColor(180, 255,180);
-        } else {
-            dsd.setColor(180, 180, 255);
-        }
+//        if (hv.getCalibrationValue(dsd.getDescriptor().getSector(), 
+//        						   dsd.getDescriptor().getLayer(), 
+//        						   dsd.getDescriptor().getComponent(), hv.GEOMEAN, 1) > 1000.0) {
+//        	dsd.setColor(255, 153, 51); // amber
+//        	
+//        }
+//        else if(dsd.getDescriptor().getComponent()%2==0){
+//            dsd.setColor(180, 255,180);
+//        } else {
+//            dsd.setColor(180, 180, 255);
+//        }
     	
     }
     
     public void entrySelected(int sector, int layer, int paddle) {
 
-    	hv.drawComponent(sector, layer, paddle, canvas);
+    	atten.drawComponent(sector, layer, paddle, canvas);
         
     }
     
-    public static void processFile(TOFHighVoltage hv) {
+    public static void processFile(TOFAtten atten) {
         String file = "/home/louise/coatjava/FtofInputFile_panel1a1bS6_from_root_file1.evio";
         EvioSource reader = new EvioSource();
         reader.open(file);
@@ -160,11 +148,11 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         int eventNum = 0;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
-        	hv.processEvent(event);
+        	atten.processEvent(event);
         	eventNum++;
         }
 
-        hv.analyze();
+        atten.analyze();
 
     }
     public void actionPerformed(ActionEvent e) {
@@ -175,15 +163,15 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         	int layer = constantsTablePanel.getSelected().getLayer();
         	int paddle = constantsTablePanel.getSelected().getComponent();
 	    	
-        	hv.customFit(sector, layer, paddle);
-	    	F1D f = hv.getF1D(sector, layer, paddle)[0];
-	    	H1D h = hv.getH1D(sector, layer, paddle)[0];
-	    	
-	    	constantsTable.getEntry(sector, layer, paddle).setData(0, Math.round(f.getParameter(1)));
-			constantsTablePanel.repaint();
-			
-			hv.drawComponent(sector, layer, paddle, canvas);
-			calibPane.repaint();
+//        	hv.customFit(sector, layer, paddle);
+//	    	F1D f = hv.getF1D(sector, layer, paddle)[0];
+//	    	H1D h = hv.getH1D(sector, layer, paddle)[0];
+//	    	
+//	    	constantsTable.getEntry(sector, layer, paddle).setData(0, Math.round(f.getParameter(1)));
+//			constantsTablePanel.repaint();
+//			
+//			hv.drawComponent(sector, layer, paddle, canvas);
+//			calibPane.repaint();
 			
             
         }
@@ -193,7 +181,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         	int layer = constantsTablePanel.getSelected().getLayer();
 
         	JFrame viewAllFrame = new JFrame();
-        	viewAllFrame.add(hv.showFits(sector, layer));
+        	viewAllFrame.add(atten.showFits(sector, layer));
         	viewAllFrame.pack();
         	viewAllFrame.setVisible(true);
         	viewAllFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
@@ -203,7 +191,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     public static void main(String[] args){
         JFrame frame = new JFrame("FTOF Calibration");
         frame.setSize(1200, 700);
-        TOFCalibration calib = new TOFCalibration();
+        TOFCalAtten calib = new TOFCalAtten();
         
         frame.add(calib.getView());
         frame.pack();

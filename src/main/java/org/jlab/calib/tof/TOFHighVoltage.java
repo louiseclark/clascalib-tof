@@ -31,8 +31,8 @@ public class TOFHighVoltage {
 	TreeMap<Integer,TOFH1D[]> container = new TreeMap<Integer,TOFH1D[]>();
 	TreeMap<Integer,F1D[]> functions = new TreeMap<Integer,F1D[]>();
 	
-	private final int GEOMEAN = 0;
-	private final int LOGRATIO = 1;
+	public final int GEOMEAN = 0;
+	public final int LOGRATIO = 1;
 	
 	private final double[]		GM_HIST_MAX = {5000.0,15000.0,3000.0};
 	private final int[]			GM_HIST_BINS = {200, 300, 150};
@@ -167,7 +167,9 @@ public class TOFHighVoltage {
 		gmFunc.setParLimits(2, 0.0,400.0);
 		gmFunc.setParameter(3, 20.0);
 		gmFunc.setParameter(4, 0.0);
-		h.fit(gmFunc);		
+		h.fit(gmFunc);	
+		
+		System.out.println("Paddle" + paddle + " GeoMean = " + gmFunc.getParameter(1));
 		
 		DetectorDescriptor desc = new DetectorDescriptor();
 		desc.setSectorLayerComponent(sector, layer, paddle);
@@ -182,7 +184,7 @@ public class TOFHighVoltage {
 		
 		F1D[] funcs = {gmFunc,lrFunc};
 		functions.put(desc.getHashCode(), funcs);
-
+		
 	}
 	
 	public void fitLogRatio(int sector, int layer, int paddle,
@@ -289,6 +291,21 @@ public class TOFHighVoltage {
 	}
 	public F1D[] getF1D(int sector, int layer, int paddle){
 		return this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
+	}
+	
+	public double getCalibrationValue(int sector, int layer, int paddle, int funcNum, int param) {
+		
+		double calibVal;
+		DetectorDescriptor desc = new DetectorDescriptor();
+		desc.setSectorLayerComponent(sector, layer, paddle);
+		F1D func;
+		try {
+			func = functions.get(desc.getHashCode())[funcNum];
+			calibVal = func.getParameter(param);
+		} catch (NullPointerException e) {
+			calibVal = 0.0;
+		}
+		return calibVal;
 	}
 	
 	public void fillTable(int sector, int layer, ConstantsTable table) {

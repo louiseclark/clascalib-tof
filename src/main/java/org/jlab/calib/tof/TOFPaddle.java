@@ -53,8 +53,31 @@ public class TOFPaddle {
 		// only if both TDCs are non-zero - otherwise ADCs are equal and log ratio is always 0
     	//return (this.geometricMean() > 500.0) && (TDCL != 0) && (TDCR != 0);
     	return (this.geometricMean() > 500.0) && (ADCR != ADCL);
+    }    
+    
+    public double leftRight() {
+    	double timeLeft=tdcToTime(TDCL);
+		double timeRight=tdcToTime(TDCR);
+		double vEff = 16; // default effective velocity to 16cm/ns
+		return (timeLeft-timeRight)*vEff;
     }
     
+    public boolean isValidLeftRight() {
+    	return (tdcToTime(TDCL) != tdcToTime(TDCR));
+    }
+    
+    double tdcToTime(double value){
+    	double c1=0.0009811; // average value from CLAS
+    	double c0=0;
+    	return c0+c1*value;
+    }		
+    
+    public double position() {
+		double vEff = 16; // default effective velocity to 16cm/ns
+		return (((double)TDCL-(double)TDCR)*vEff)/2.0;
+    }
+    
+
     public DetectorDescriptor getDescriptor(){ return this.desc;}
     
     public String toString() {
