@@ -1,6 +1,7 @@
 package org.jlab.calib.tof;
 
 import java.text.DecimalFormat;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -9,6 +10,7 @@ import org.jlab.clas.detector.ConstantsTable;
 import org.jlab.clas.detector.DetectorDescriptor;
 import org.jlab.evio.clas12.EvioDataEvent;
 import org.root.func.F1D;
+import org.root.histogram.GraphErrors;
 import org.root.histogram.H1D;
 import org.root.histogram.H2D;
 import org.root.pad.EmbeddedCanvas;
@@ -18,7 +20,7 @@ public class TOFAtten {
 
 	TreeMap<Integer,H2D> container = new TreeMap<Integer,H2D>();
 	TreeMap<Integer,F1D> functions = new TreeMap<Integer,F1D>();
-
+	TreeMap<Integer,GraphErrors> graphs = new TreeMap<Integer,GraphErrors>();
 	
 	public void processEvent(EvioDataEvent event){
 		List<TOFPaddle> list = DataProvider.getPaddleList(event);        
@@ -30,6 +32,11 @@ public class TOFAtten {
 			if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
 				
 				this.container.get(paddle.getDescriptor().getHashCode()).fill(paddle.position(), paddle.logRatio());
+				
+				if (paddle.geometricMean() > 1980 && paddle.geometricMean() < 2020
+					&& paddle.TDCL != 0 && paddle.TDCR != 0) {
+					this.graphs.get(paddle.getDescriptor().getHashCode()).add(paddle.position(), paddle.ADCL);
+				}
 				
 			} else {
 				System.out.println("Cant find : " + paddle.getDescriptor().toString() );
@@ -47,6 +54,13 @@ public class TOFAtten {
 					H2D hist = new H2D("Log Ratio vs Position : Paddle "+paddle,"Log Ratio vs Position : Paddle "+paddle, 
 											100, -1000.0, 1000.0, 100, -5.0, 5.0);
 					container.put(desc.getHashCode(), hist);
+					
+					double[] x = {0.0};
+					double[] y = {0.0};
+					GraphErrors attenGraph = new GraphErrors(x,y);
+					graphs.put(desc.getHashCode(), attenGraph);
+					
+
 				}
 			}
 		}
@@ -57,6 +71,7 @@ public class TOFAtten {
 			for (int layer = 0; layer < 3; layer++) {
 				for(int paddle = 0; paddle < TOFCalibration.NUM_PADDLES[layer]; paddle++){
 					fit(sector, layer, paddle, 0.0, 0.0);
+					
 				}
 			}
 		}
@@ -64,8 +79,9 @@ public class TOFAtten {
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
 		
-		canvas.draw(this.getH1D(sector, layer, paddle),"");
+		//canvas.draw(this.getH1D(sector, layer, paddle),"");
 		//canvas.draw(this.getF1D(sector, layer, paddle),"same");
+		canvas.draw(this.getGraph(sector, layer, paddle));
 		
 	}
 
@@ -77,7 +93,7 @@ public class TOFAtten {
 		DetectorDescriptor desc = new DetectorDescriptor();
 		desc.setSectorLayerComponent(sector, layer, paddle);
 		functions.put(desc.getHashCode(), func);
-		
+
 	}
 	
 //
@@ -105,6 +121,10 @@ public class TOFAtten {
 	}
 	public F1D getF1D(int sector, int layer, int paddle){
 		return this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
+	}
+	
+	public GraphErrors getGraph(int sector, int layer, int paddle) {
+		return this.graphs.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}
 	
 	public double getCalibrationValue(int sector, int layer, int paddle, int funcNum, int param) {

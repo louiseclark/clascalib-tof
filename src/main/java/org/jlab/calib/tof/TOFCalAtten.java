@@ -197,6 +197,8 @@ public class TOFCalAtten implements IDetectorListener,IConstantsTableListener,Ac
         frame.pack();
         frame.setVisible(true);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        
+        
    }
 
 }

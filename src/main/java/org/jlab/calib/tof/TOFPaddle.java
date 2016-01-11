@@ -15,10 +15,10 @@ public class TOFPaddle {
     
     private DetectorDescriptor desc = new DetectorDescriptor();
     
-    private int ADCL = 0;
-    private int ADCR = 0;
-    private int TDCL = 0;
-    private int TDCR = 0;
+    public int ADCL = 0;
+    public int ADCR = 0;
+    public int TDCL = 0;
+    public int TDCR = 0;
     
     public TOFPaddle(int sector, int layer, int paddle){
         this.desc.setSectorLayerComponent(sector, layer, paddle);
@@ -74,7 +74,7 @@ public class TOFPaddle {
     
     public double position() {
 		double vEff = 16; // default effective velocity to 16cm/ns
-		return (((double)TDCL-(double)TDCR)*vEff)/2.0;
+		return ((tdcToTime(TDCL)-tdcToTime(TDCR))*vEff)/2.0;
     }
     
 
