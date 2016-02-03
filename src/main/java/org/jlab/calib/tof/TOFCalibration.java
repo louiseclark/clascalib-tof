@@ -7,6 +7,7 @@ package org.jlab.calib.tof;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.List;
 import java.util.TreeMap;
 
 import javax.swing.JButton;
@@ -22,6 +23,9 @@ import org.jlab.clas12.calib.CalibrationPane;
 import org.jlab.clas12.calib.DetectorShape2D;
 import org.jlab.clas12.calib.DetectorShapeView2D;
 import org.jlab.clas12.calib.IDetectorListener;
+import org.jlab.clas12.detector.DetectorCounter;
+import org.jlab.clas12.detector.EventDecoder;
+import org.jlab.clas12.detector.FADCBasicFitter;
 import org.jlab.evio.clas12.EvioDataEvent;
 import org.jlab.evio.clas12.EvioSource;
 import org.root.func.F1D;
@@ -151,16 +155,25 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     }
     
     public static void processFile(TOFHighVoltage hv) {
-        String file = "/home/louise/coatjava/FtofInputFile_panel1a1bS6_from_root_file1.evio";
+        // my file with Haiyun's data turned into evio events
+    	// use DataProvider for this
+    	//String file = "/home/louise/coatjava/FtofInputFile_panel1a1bS6_from_root_file1.evio";
+    	
+    	// Cole's file - use DataProviderRaw
+    	String file = "/home/louise/sector2_000251_mode7.evio.0";
+    	
         EvioSource reader = new EvioSource();
         reader.open(file);
         System.out.println(reader.getSize());
-
+        
+        EventDecoder decoder = new EventDecoder();
+        //decoder.addFitter(DetectorType.FTOF1A, new FADCBasicFitter(30,35,70,75));
+        
         int maxEvents = 0;
         int eventNum = 0;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
-        	hv.processEvent(event);
+        	hv.processEvent(event, decoder);
         	eventNum++;
         }
 

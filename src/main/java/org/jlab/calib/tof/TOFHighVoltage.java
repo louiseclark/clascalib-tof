@@ -16,6 +16,7 @@ import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;
 
 import org.jlab.clas.detector.*;
+import org.jlab.clas12.detector.EventDecoder;
 import org.jlab.evio.clas12.*;
 import org.root.func.*;
 import org.root.histogram.*;
@@ -34,15 +35,17 @@ public class TOFHighVoltage {
 	public final int GEOMEAN = 0;
 	public final int LOGRATIO = 1;
 	
-	private final double[]		GM_HIST_MAX = {5000.0,15000.0,3000.0};
+	private final double[]		GM_HIST_MAX = {4000.0,4000.0,3000.0};
 	private final int[]			GM_HIST_BINS = {200, 300, 150};
 	private final double 		LR_THRESHOLD_FRACTION = 0.2;
 	private final int			GM_REBIN_THRESHOLD = 50000;
 	
 		
 	
-	public void processEvent(EvioDataEvent event){
-		List<TOFPaddle> list = DataProvider.getPaddleList(event);        
+	public void processEvent(EvioDataEvent event, EventDecoder decoder){
+		//List<TOFPaddle> list = DataProvider.getPaddleList(event);
+				
+		List<TOFPaddle> list = DataProviderRaw.getPaddleList(event, decoder);
 		this.process(list);
 	}
 
@@ -54,6 +57,7 @@ public class TOFHighVoltage {
 				
 				// fill Geometric Mean
 				this.container.get(paddle.getDescriptor().getHashCode())[GEOMEAN].fill(paddle.geometricMean());
+				//this.container.get(paddle.getDescriptor().getHashCode())[GEOMEAN].fill(paddle.ADCL);
 				
 				// fill Log Ratio
 				if (paddle.isValidLogRatio()) {
@@ -121,7 +125,7 @@ public class TOFHighVoltage {
 			}
 
 			if(nRebin>0) {
-				h.rebin(nRebin);
+				//h.rebin(nRebin);
 			}		
 		}		
 		// Work out the range for the fit

@@ -52,7 +52,7 @@ public class TOFAtten {
 
 					desc.setSectorLayerComponent(sector, layer, paddle);
 					H2D hist = new H2D("Log Ratio vs Position : Paddle "+paddle,"Log Ratio vs Position : Paddle "+paddle, 
-											100, -1000.0, 1000.0, 100, -5.0, 5.0);
+											100, -200.0, 200.0, 100, -5.0, 5.0);
 					container.put(desc.getHashCode(), hist);
 					
 					double[] x = {0.0};
@@ -79,9 +79,9 @@ public class TOFAtten {
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
 		
-		//canvas.draw(this.getH1D(sector, layer, paddle),"");
+		canvas.draw(this.getH1D(sector, layer, paddle),"");
 		//canvas.draw(this.getF1D(sector, layer, paddle),"same");
-		canvas.draw(this.getGraph(sector, layer, paddle));
+		//canvas.draw(this.getGraph(sector, layer, paddle));
 		
 	}
 
@@ -147,6 +147,7 @@ public class TOFAtten {
 		for (int paddle=0; paddle<TOFCalibration.NUM_PADDLES[layer]; paddle++) {
 			F1D f = getF1D(sector, layer, paddle);
 			table.addEntry(sector, layer, paddle);
+			
 			//table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0").format(f.getMin())));
 			//table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0").format(f.getMax())));
 		}
