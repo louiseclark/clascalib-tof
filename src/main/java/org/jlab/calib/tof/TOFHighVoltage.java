@@ -6,6 +6,7 @@
 package org.jlab.calib.tof;
 
 import java.awt.EventQueue;
+import java.awt.Font;
 import java.text.DecimalFormat;
 import java.util.List;
 import java.util.Map;
@@ -31,20 +32,26 @@ public class TOFHighVoltage {
 
 	TreeMap<Integer,TOFH1D[]> container = new TreeMap<Integer,TOFH1D[]>();
 	TreeMap<Integer,F1D[]> functions = new TreeMap<Integer,F1D[]>();
+	TreeMap<Integer,Double[]> constants = new TreeMap<Integer,Double[]>();
 	
+	// constants for indexing the histogram and constant arrays
 	public final int GEOMEAN = 0;
 	public final int LOGRATIO = 1;
+	public final int LR_CENTROID = 0;
+	public final int LR_ERROR = 1;
 	
-	private final double[]		GM_HIST_MAX = {4000.0,4000.0,3000.0};
+	private final double[]		GM_HIST_MAX = {4000.0,8000.0,3000.0};
 	private final int[]			GM_HIST_BINS = {200, 300, 150};
 	private final double 		LR_THRESHOLD_FRACTION = 0.2;
 	private final int			GM_REBIN_THRESHOLD = 50000;
+
+    public final int[]		EXPECTED_MIP_CHANNEL = {800, 2000, 800};
+    public final double[]	ALPHA = {13.4, 4.7, 8.6};
 	
 		
-	
 	public void processEvent(EvioDataEvent event, EventDecoder decoder){
+		
 		//List<TOFPaddle> list = DataProvider.getPaddleList(event);
-				
 		List<TOFPaddle> list = DataProviderRaw.getPaddleList(event, decoder);
 		this.process(list);
 	}
@@ -72,14 +79,16 @@ public class TOFHighVoltage {
 	
 	public void init(){
 		DetectorDescriptor desc = new DetectorDescriptor();
-		for(int sector = 0; sector < 6; sector++){
-			for (int layer = 0; layer < 3; layer++) {
-				for(int paddle = 0; paddle < TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		for(int sector = 1; sector <= 6; sector++){
+			for (int layer = 1; layer <= 3; layer++) {
+				int layer_index = layer-1;
+				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 
 					desc.setSectorLayerComponent(sector, layer, paddle);
-					TOFH1D hists[] = {new TOFH1D("Geometric Mean Paddle "+paddle,"Geometric Mean Paddle "+paddle, 
-											GM_HIST_BINS[layer], 0.0, GM_HIST_MAX[layer]),
-								   new TOFH1D("Log Ratio Paddle "+paddle,"Log Ratio Paddle "+paddle, 75,-3.0,3.0)};
+									
+					TOFH1D hists[] = {new TOFH1D("Geometric Mean Sector "+sector+" Paddle "+paddle,"Geometric Mean Sector "+sector+" Paddle "+paddle, 
+											GM_HIST_BINS[layer_index], 0.0, GM_HIST_MAX[layer_index]),
+								   new TOFH1D("Log Ratio Sector "+sector+" Paddle "+paddle,"Log Ratio Sector "+sector+" Paddle "+paddle, 75,-3.0,3.0)};
 					container.put(desc.getHashCode(), hists);
 				}
 			}
@@ -87,14 +96,18 @@ public class TOFHighVoltage {
 	}
 
 	public void analyze(){
-		for(int sector = 0; sector < 6; sector++){
-			for (int layer = 0; layer < 3; layer++) {
-				for(int paddle = 0; paddle < TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		for(int sector = 1; sector <= 6; sector++){
+			for (int layer = 1; layer <= 3; layer++) {
+				int layer_index = layer-1;
+				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 					fitGeoMean(sector, layer, paddle, 0.0, 0.0);
 					fitLogRatio(sector, layer, paddle, 0.0, 0.0);
 				}
 			}
 		}
+		
+		double testL = newHV(2,1,10,-1610.0, "LEFT");
+		double testR = newHV(2,1,10,-1582.0, "RIGHT");
 	}
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
@@ -102,8 +115,13 @@ public class TOFHighVoltage {
 		int numHists = this.getH1D(sector, layer, paddle).length;
 		canvas.divide(numHists, 1);
 		
-		for (int i=0; i<numHists; i++) {
+		for (int i=0; i<numHists; i++) {			
+
 			canvas.cd(i);
+
+			Font font = new Font("Verdana", Font.PLAIN, 7);		
+			canvas.getPad().setFont(font);
+			
 			canvas.draw(this.getH1D(sector, layer, paddle)[i],"");
 			canvas.draw(this.getF1D(sector, layer, paddle)[i],"same");
 		}
@@ -113,11 +131,12 @@ public class TOFHighVoltage {
 	public void fitGeoMean(int sector, int layer, int paddle,
 			double minRange, double maxRange){
 
+		int layer_index = layer-1;
 		TOFH1D h = this.getH1D(sector, layer, paddle)[GEOMEAN];
 
 		// First rebin depending on number of entries
 		int nEntries = h.getEntries(); 
-		if ((nEntries != 0) && (h.getAxis().getNBins() == GM_HIST_BINS[layer])) {
+		if ((nEntries != 0) && (h.getAxis().getNBins() == GM_HIST_BINS[layer_index])) {
 		//   not empty      &&   hasn't already been rebinned
 			int nRebin=(int) (GM_REBIN_THRESHOLD/nEntries);            
 			if (nRebin>5) {
@@ -125,7 +144,7 @@ public class TOFHighVoltage {
 			}
 
 			if(nRebin>0) {
-				//h.rebin(nRebin);
+				h.rebin(nRebin);
 			}		
 		}		
 		// Work out the range for the fit
@@ -164,16 +183,14 @@ public class TOFHighVoltage {
 
 		double maxPos = h.getAxis().getBinCenter(maxBin);
 		F1D gmFunc = new F1D("landau+exp",startChannelForFit, endChannelForFit);
-
+		
 		gmFunc.setParameter(0, maxCounts);
 		gmFunc.setParameter(1, maxPos);
 		gmFunc.setParameter(2, 100.0);
 		gmFunc.setParLimits(2, 0.0,400.0);
 		gmFunc.setParameter(3, 20.0);
 		gmFunc.setParameter(4, 0.0);
-		h.fit(gmFunc);	
-		
-		System.out.println("Paddle" + paddle + " GeoMean = " + gmFunc.getParameter(1));
+		h.fit(gmFunc, "R");	
 		
 		DetectorDescriptor desc = new DetectorDescriptor();
 		desc.setSectorLayerComponent(sector, layer, paddle);
@@ -198,9 +215,9 @@ public class TOFHighVoltage {
 
 		// calculate the mean value using portion of the histogram where counts are > 0.2 * max counts
 		
-		double sum =0;
-		double sumWeight =0;
-		double sumSquare =0;
+		double sum =0.0;
+		double sumWeight =0.0;
+		double sumSquare =0.0;
 		int maxBin = h.getMaximumBin();
 		double maxCounts = h.getBinContent(maxBin);
 		int nBins = h.getAxis().getNBins();
@@ -231,21 +248,33 @@ public class TOFHighVoltage {
 			double value=h.getBinContent(i);
 			double middle=h.getAxis().getBinCenter(i);
 
-			sum+=value;
+			sum+=value;			
 			sumWeight+=value*middle;
 			sumSquare+=value*middle*middle;
 		}			
 
-		double logRatioPeak = 0.0;
+		double logRatioMean = 0.0;
 		double logRatioError = 0.0;
 
 		if (sum>0) {
-			logRatioPeak=sumWeight/sum;
-			logRatioError=Math.sqrt((sumSquare/sum)-logRatioPeak*logRatioPeak);
+			logRatioMean=sumWeight/sum;
+			logRatioError=(1/Math.sqrt(sum))*Math.sqrt((sumSquare/sum)-(logRatioMean*logRatioMean));
 		}
 		else {
-			logRatioPeak=0.0;
+			logRatioMean=0.0;
 			logRatioError=0.0;
+		}
+		
+		if (sector==2&&paddle<6) {
+			System.out.println("Paddle "+paddle);
+			System.out.println("sum = "+sum);
+			System.out.println("sumWeight = "+sumWeight);
+			System.out.println("sumSquare = "+sumSquare);
+			System.out.println("logRatioMean = "+logRatioMean);
+			System.out.println("sumSquare/sum = "+(sumSquare/sum));
+			System.out.println("mean^2 = "+(logRatioMean*logRatioMean));
+			System.out.println("error = "+logRatioError);
+			
 		}
 		
 		// store the function showing the width over which mean is calculated
@@ -268,9 +297,47 @@ public class TOFHighVoltage {
 		
 		F1D[] funcs = {gmFunc,lrFunc};
 		functions.put(desc.getHashCode(), funcs);
+		
+		// put the constants in the treemap
+		Double[] consts = {logRatioMean, logRatioError};
+		constants.put(desc.getHashCode(), consts);
 
 	}	
 
+	public double newHV(int sector, int layer, int paddle, double origVoltage, String opt) {
+		
+		int layer_index = layer-1;
+		
+		double gainIn = getF1D(sector, layer, paddle)[GEOMEAN].getParameter(1);
+		double centroid = getConst(sector, layer, paddle)[LR_CENTROID];
+		
+		double gainLR = 0.0;
+		if (opt == "LEFT") {
+			gainLR = gainIn / (Math.sqrt(Math.exp(centroid)));
+		}
+		else {
+			gainLR = gainIn * (Math.sqrt(Math.exp(centroid)));
+		}
+		
+		double deltaGainLeft = EXPECTED_MIP_CHANNEL[layer_index] - gainLR;
+		double deltaV = (origVoltage * deltaGainLeft) / (gainLR * ALPHA[layer_index]);
+		
+		double newVoltage = origVoltage + deltaV;
+
+		System.out.println(sector+" "+layer+" "+paddle+" "+opt);
+		System.out.println("origVoltage = "+origVoltage);
+		System.out.println("gainIn = "+gainIn);
+		System.out.println("centroid = "+centroid);
+		System.out.println("gainLR = "+gainLR);
+		System.out.println("deltaGainLeft = "+deltaGainLeft);
+		System.out.println("deltaV = "+deltaV);
+		System.out.println("return = "+newVoltage);
+		
+		
+		return newVoltage;
+		
+	}
+	
 	public void customFit(int sector, int layer, int paddle){
 
 		H1D h = getH1D(sector, layer, paddle)[GEOMEAN];
@@ -296,6 +363,9 @@ public class TOFHighVoltage {
 	public F1D[] getF1D(int sector, int layer, int paddle){
 		return this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}
+	public Double[] getConst(int sector, int layer, int paddle){
+		return this.constants.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
+	}	
 	
 	public double getCalibrationValue(int sector, int layer, int paddle, int funcNum, int param) {
 		
@@ -314,20 +384,28 @@ public class TOFHighVoltage {
 	
 	public void fillTable(int sector, int layer, ConstantsTable table) {
 		
-		for (int paddle=0; paddle<TOFCalibration.NUM_PADDLES[layer]; paddle++) {
+		int layer_index = layer-1;
+		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++) {
+			
 			F1D f = getF1D(sector, layer, paddle)[GEOMEAN];
-			TOFH1D h = getH1D(sector, layer, paddle)[LOGRATIO];
+			Double lrCentroid = getConst(sector, layer, paddle)[LR_CENTROID];
+			Double lrError = getConst(sector, layer, paddle)[LR_ERROR];
 			table.addEntry(sector, layer, paddle);
-			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0").format(f.getParameter(1))));
-			table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.000").format(h.getMean())));
+			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0.0").format(f.getParameter(1))));
+			table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(f.parameter(1).error())));
+			table.getEntry(sector, layer, paddle).setData(2, Double.parseDouble(new DecimalFormat("0.000").format(lrCentroid)));
+			table.getEntry(sector, layer, paddle).setData(3, Double.parseDouble(new DecimalFormat("0.000").format(lrError)));
+
 		}
 	}
 
 	
 	public TBookCanvas showFits(int sector, int layer) {
+		
+		int layer_index = layer-1;
 		TBookCanvas		book = new TBookCanvas(2,2);
 		
-		for (int paddle=0; paddle<TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 			book.add(getH1D(sector, layer, paddle)[GEOMEAN], "");
 			book.add(getF1D(sector, layer, paddle)[GEOMEAN], "same");
 			

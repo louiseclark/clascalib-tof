@@ -26,9 +26,11 @@ import org.jlab.clas12.calib.IDetectorListener;
 import org.jlab.clas12.detector.DetectorCounter;
 import org.jlab.clas12.detector.EventDecoder;
 import org.jlab.clas12.detector.FADCBasicFitter;
+import org.jlab.clasrec.main.DetectorMonitoring;
 import org.jlab.evio.clas12.EvioDataEvent;
 import org.jlab.evio.clas12.EvioSource;
 import org.root.func.F1D;
+import org.root.group.TBrowser;
 import org.root.histogram.H1D;
 import org.root.pad.EmbeddedCanvas;
 
@@ -47,8 +49,12 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
 
     private TOFHighVoltage hv = new TOFHighVoltage();
     
+	public final int GEOMEAN = 0;
+	public final int LOGRATIO = 1;    
+    
     public static final int[]		NUM_PADDLES = {23,62,5};
     public static final String[]	LAYER_NAME = {"FTOF1A","FTOF1B","FTOF2B"};
+    public static final int			ALLOWED_MIP_DIFF = 50;
         
     
     public TOFCalibration(){
@@ -61,7 +67,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     public void init(){
         this.calibPane.getCanvasPane().add(canvas);
         this.constantsTable = new ConstantsTable(DetectorType.FTOF,
-                new String[]{"Geometric Mean Peak","Log Ratio Mean"});
+                new String[]{"Geometric Mean Peak","Uncertainty", "Log Ratio Mean", "Uncertainty"});
 
         this.constantsTablePanel = new ConstantsTablePanel(this.constantsTable);
         this.constantsTablePanel.addListener(this);        
@@ -78,24 +84,28 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         
         hv.init();
         processFile(hv);
-        hv.drawComponent(5, 0, 0, canvas);
-        hv.fillTable(0, 1, constantsTable);
+        // Display sector 1 initially
+        hv.drawComponent(1, 1, 1, canvas);
+        hv.fillTable(1, 1, constantsTable);
         
     }
     
     public void initDetector(){
         
-    	for (int layer = 0; layer < 3; layer++) {
-    		DetectorShapeView2D view = new DetectorShapeView2D(LAYER_NAME[layer]);
-    		for(int sector = 0; sector < 6; sector++){
-        		for(int paddle = 0; paddle < NUM_PADDLES[layer]; paddle++){
+    	for (int layer = 1; layer <= 3; layer++) {
+    		int layer_index = layer-1;
+    		DetectorShapeView2D view = new DetectorShapeView2D(LAYER_NAME[layer_index]);
+    		for(int sector = 1; sector <= 6; sector++){
+    			int sector_index = sector -1;
+        		for(int paddle = 1; paddle <= NUM_PADDLES[layer_index]; paddle++){
         			
+        			int paddle_index = paddle-1;
         			DetectorShape2D  shape = new DetectorShape2D();
                     shape.getDescriptor().setType(DetectorType.FTOF1A);
                     shape.getDescriptor().setSectorLayerComponent(sector, layer, paddle);
-                    shape.createBarXY(18, 80 + paddle*20);
-                    shape.getShapePath().translateXYZ(120+20*paddle, 0, 0);
-                    shape.getShapePath().rotateZ(Math.toRadians(sector*60.0));
+                    shape.createBarXY(18, 80 + paddle_index*20);
+                    shape.getShapePath().translateXYZ(120+20*paddle_index, 0, 0);
+                    shape.getShapePath().rotateZ(Math.toRadians((sector_index*60.0)+180.0));
                     if(paddle%2==0){
                         shape.setColor(180, 255,180);
                     } else {
@@ -134,13 +144,19 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     public void update(DetectorShape2D dsd) {
     	// check any constraints
     	
-        if (hv.getCalibrationValue(dsd.getDescriptor().getSector(), 
-        						   dsd.getDescriptor().getLayer(), 
-        						   dsd.getDescriptor().getComponent(), hv.GEOMEAN, 1) > 1000.0) {
+    	double mipChannel = hv.getCalibrationValue(dsd.getDescriptor().getSector(), 
+				   dsd.getDescriptor().getLayer(), 
+				   dsd.getDescriptor().getComponent(), hv.GEOMEAN, 1);
+    	int layer_index = dsd.getDescriptor().getLayer()-1;
+    	double expectedMipChannel = hv.EXPECTED_MIP_CHANNEL[layer_index];
+    	
+        if (mipChannel < expectedMipChannel - ALLOWED_MIP_DIFF ||
+        	mipChannel > expectedMipChannel + ALLOWED_MIP_DIFF) {
+        	
         	dsd.setColor(255, 153, 51); // amber
         	
         }
-        else if(dsd.getDescriptor().getComponent()%2==0){
+        else if (dsd.getDescriptor().getComponent()%2==0) {
             dsd.setColor(180, 255,180);
         } else {
             dsd.setColor(180, 180, 255);
@@ -170,7 +186,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         //decoder.addFitter(DetectorType.FTOF1A, new FADCBasicFitter(30,35,70,75));
         
         int maxEvents = 0;
-        int eventNum = 0;
+        int eventNum = 100;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
         	hv.processEvent(event, decoder);
@@ -189,8 +205,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         	int paddle = constantsTablePanel.getSelected().getComponent();
 	    	
         	hv.customFit(sector, layer, paddle);
-	    	F1D f = hv.getF1D(sector, layer, paddle)[0];
-	    	H1D h = hv.getH1D(sector, layer, paddle)[0];
+	    	F1D f = hv.getF1D(sector, layer, paddle)[GEOMEAN];
 	    	
 	    	constantsTable.getEntry(sector, layer, paddle).setData(0, Math.round(f.getParameter(1)));
 			constantsTablePanel.repaint();
@@ -210,6 +225,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         	viewAllFrame.pack();
         	viewAllFrame.setVisible(true);
         	viewAllFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        	
         }
     }
     
@@ -222,6 +238,8 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         frame.pack();
         frame.setVisible(true);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        
+        
    }
 
 }

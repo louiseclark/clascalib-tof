@@ -46,9 +46,10 @@ public class TOFAtten {
 	
 	public void init(){
 		DetectorDescriptor desc = new DetectorDescriptor();
-		for(int sector = 0; sector < 6; sector++){
-			for (int layer = 0; layer < 3; layer++) {
-				for(int paddle = 0; paddle < TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		for(int sector = 1; sector <= 6; sector++){
+			for (int layer = 1; layer <= 3; layer++) {
+				int layer_index = layer-1;
+				for(int paddle = 0; paddle < TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 
 					desc.setSectorLayerComponent(sector, layer, paddle);
 					H2D hist = new H2D("Log Ratio vs Position : Paddle "+paddle,"Log Ratio vs Position : Paddle "+paddle, 
@@ -67,9 +68,10 @@ public class TOFAtten {
 	}
 
 	public void analyze(){
-		for(int sector = 0; sector < 6; sector++){
-			for (int layer = 0; layer < 3; layer++) {
-				for(int paddle = 0; paddle < TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		for(int sector = 1; sector <= 6; sector++){
+			for (int layer = 1; layer <= 3; layer++) {
+				int layer_index = layer-1;
+				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 					fit(sector, layer, paddle, 0.0, 0.0);
 					
 				}
@@ -144,7 +146,8 @@ public class TOFAtten {
 	
 	public void fillTable(int sector, int layer, ConstantsTable table) {
 		
-		for (int paddle=0; paddle<TOFCalibration.NUM_PADDLES[layer]; paddle++) {
+		int layer_index = layer-1;
+		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++) {
 			F1D f = getF1D(sector, layer, paddle);
 			table.addEntry(sector, layer, paddle);
 			
@@ -155,9 +158,11 @@ public class TOFAtten {
 
 	
 	public TBookCanvas showFits(int sector, int layer) {
+		
 		TBookCanvas		book = new TBookCanvas(2,2);
 		
-		for (int paddle=0; paddle<TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		int layer_index = layer-1;
+		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 			book.add(getH1D(sector, layer, paddle), "");
 			book.add(getF1D(sector, layer, paddle), "same");
 			

@@ -19,7 +19,7 @@ public class RawDataReader {
 		// TODO Auto-generated constructor stub
 	}
 
-	public static void main(String[] args) {
+	public static void read1A() {
 		
 		String input = "/home/louise/sector2_000251_mode7.evio.0";
 		EvioSource  reader = new EvioSource();
@@ -59,13 +59,18 @@ public class RawDataReader {
 		     
 		     for(DetectorCounter bank : banks){
 		         if(bank.getChannels().size()==2){
-		             if(bank.isMultiHit()==false){
+		             //if(bank.isMultiHit()==false){
 		                 // isMultihit() method returns false when
 		                 //  (bank.getChannels().get(0).getADC().size()==1&&
 		                 //  bank.getChannels().get(1).getADC().size()==1&&
 		                 //  bank.getChannels().get(0).getTDC().size()==1&&
 		                 //  bank.getChannels().get(1).getTDC().size()==1)
 		                 // it checks if each channel has one ADC and one TDC.
+		        	 if (bank.getChannels().get(0).getADC().size()==1&&
+			                   bank.getChannels().get(1).getADC().size()==1&&
+			                   bank.getChannels().get(0).getTDC().size()>0&&
+			                   bank.getChannels().get(1).getTDC().size()>0) {		        	 
+		        		 
 		                 int adcL = bank.getChannels().get(0).getADC().get(0);
 		                 int adcR = bank.getChannels().get(1).getADC().get(0);
 		                 int tdcL = bank.getChannels().get(0).getTDC().get(0);
@@ -85,21 +90,10 @@ public class RawDataReader {
 		         }
 		     }
 		}
-
-//		TGCanvas c1 = new TGCanvas("c1","FTOF1A ADC",1200,800,3,6);
-//				
-//		for (int i=1; i<=6; i++) {
-//			c1.cd((i-1)*3);
-//			c1.draw(hADCLMap.get(i));
-//			c1.cd(((i-1)*3)+1);
-//			c1.draw(hADCRMap.get(i));
-//			c1.cd(((i-1)*3)+2);
-//			c1.draw(hADCGMMap.get(i));
-//		}
-
+		TGCanvas c1 = new TGCanvas("c1","FTOF1A",1200,800,2,2);
+		
 		for (int i=1; i<=23; i++) {
 			
-			TGCanvas c1 = new TGCanvas("c1","FTOF1A",1200,800,2,2);
 			c1.cd(0);
 			c1.draw(hADCLMap.get(i));
 			c1.cd(1);
@@ -115,7 +109,7 @@ public class RawDataReader {
 		
 	}
 
-	public static void not_main(String[] args) {
+	public static void read1B() {
 		
 		String input = "/home/louise/sector2_000251_mode7.evio.0";
 		EvioSource  reader = new EvioSource();
@@ -155,14 +149,20 @@ public class RawDataReader {
 		     
 		     for(DetectorCounter bank : banks){
 		         if(bank.getChannels().size()==2){
-		             if(bank.isMultiHit()==false){
+		             //if(bank.isMultiHit()==false){
 		                 // isMultihit() method returns false when
 		                 //  (bank.getChannels().get(0).getADC().size()==1&&
 		                 //  bank.getChannels().get(1).getADC().size()==1&&
 		                 //  bank.getChannels().get(0).getTDC().size()==1&&
 		                 //  bank.getChannels().get(1).getTDC().size()==1)
 		                 // it checks if each channel has one ADC and one TDC.
-		                 int adcL = bank.getChannels().get(0).getADC().get(0);
+		               
+		        	 if (bank.getChannels().get(0).getADC().size()==1&&
+			                   bank.getChannels().get(1).getADC().size()==1&&
+			                   bank.getChannels().get(0).getTDC().size()>0&&
+			                   bank.getChannels().get(1).getTDC().size()>0) {
+		        		 
+		        	 	 int adcL = bank.getChannels().get(0).getADC().get(0);
 		                 int adcR = bank.getChannels().get(1).getADC().get(0);
 		                 int tdcL = bank.getChannels().get(0).getTDC().get(0);
 		                 int tdcR = bank.getChannels().get(1).getTDC().get(0);
@@ -182,17 +182,6 @@ public class RawDataReader {
 		     }
 		}
 
-//		TGCanvas c1 = new TGCanvas("c1","FTOF1A ADC",1200,800,3,6);
-//				
-//		for (int i=1; i<=6; i++) {
-//			c1.cd((i-1)*3);
-//			c1.draw(hADCLMap.get(i));
-//			c1.cd(((i-1)*3)+1);
-//			c1.draw(hADCRMap.get(i));
-//			c1.cd(((i-1)*3)+2);
-//			c1.draw(hADCGMMap.get(i));
-//		}
-
 		for (int i=1; i<=62; i++) {
 			
 			TGCanvas c1 = new TGCanvas("c1","FTOF1B",1200,800,2,2);
@@ -208,6 +197,13 @@ public class RawDataReader {
 			c1.save("/home/louise/FTOF1B_p"+i+".jpg");
 
 		}
+		
+	}
+	
+	public static void main(String[] args) {
+		
+		read1A();
+		//read1B();
 		
 	}
 	

@@ -62,24 +62,27 @@ public class TOFCalAtten implements IDetectorListener,IConstantsTableListener,Ac
         
         atten.init();
         processFile(atten);
-        atten.drawComponent(5, 0, 0, canvas);
-        atten.fillTable(0, 1, constantsTable);
+        atten.drawComponent(1, 1, 1, canvas);
+        atten.fillTable(1, 1, constantsTable);
         
     }
     
     public void initDetector(){
         
-    	for (int layer = 0; layer < 3; layer++) {
-    		DetectorShapeView2D view = new DetectorShapeView2D(LAYER_NAME[layer]);
-    		for(int sector = 0; sector < 6; sector++){
-        		for(int paddle = 0; paddle < NUM_PADDLES[layer]; paddle++){
+    	for (int layer = 1; layer <= 3; layer++) {
+    		int layer_index = layer-1;
+    		DetectorShapeView2D view = new DetectorShapeView2D(LAYER_NAME[layer_index]);
+    		for(int sector = 1; sector <= 6; sector++){
+    			int sector_index = sector -1;
+        		for(int paddle = 1; paddle <= NUM_PADDLES[layer_index]; paddle++){
         			
+        			int paddle_index = paddle-1;
         			DetectorShape2D  shape = new DetectorShape2D();
                     shape.getDescriptor().setType(DetectorType.FTOF1A);
                     shape.getDescriptor().setSectorLayerComponent(sector, layer, paddle);
-                    shape.createBarXY(18, 80 + paddle*20);
-                    shape.getShapePath().translateXYZ(120+20*paddle, 0, 0);
-                    shape.getShapePath().rotateZ(Math.toRadians(sector*60.0));
+                    shape.createBarXY(18, 80 + paddle_index*20);
+                    shape.getShapePath().translateXYZ(120+20*paddle_index, 0, 0);
+                    shape.getShapePath().rotateZ(Math.toRadians((sector_index*60.0)+180.0));
                     if(paddle%2==0){
                         shape.setColor(180, 255,180);
                     } else {

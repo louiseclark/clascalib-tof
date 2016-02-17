@@ -23,7 +23,7 @@ public class DataProvider {
             for(int loop = 0; loop < bank.rows(); loop++){
                 TOFPaddle  paddle = new TOFPaddle(
                         bank.getInt("sector", loop),
-                        0,
+                        1,
                         bank.getInt("paddle", loop),
                         bank.getInt("ADCL", loop),
                         bank.getInt("ADCR", loop),
@@ -39,7 +39,7 @@ public class DataProvider {
             for(int loop = 0; loop < bank.rows(); loop++){
                 TOFPaddle  paddle = new TOFPaddle(
                         bank.getInt("sector", loop),
-                        1,
+                        2,
                         bank.getInt("paddle", loop),
                         bank.getInt("ADCL", loop),
                         bank.getInt("ADCR", loop),
@@ -55,7 +55,7 @@ public class DataProvider {
             for(int loop = 0; loop < bank.rows(); loop++){
                 TOFPaddle  paddle = new TOFPaddle(
                         bank.getInt("sector", loop),
-                        2,
+                        3,
                         bank.getInt("paddle", loop),
                         bank.getInt("ADCL", loop),
                         bank.getInt("ADCR", loop),

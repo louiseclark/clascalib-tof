@@ -48,7 +48,7 @@ public class DataProviderRaw {
 	                 
 	                 TOFPaddle  tofPaddle = new TOFPaddle(
 	                         sector,
-	                         0, //layer,
+	                         1, //layer,
 	                         paddle,
 	                         adcL,
 	                         adcR,
@@ -64,14 +64,17 @@ public class DataProviderRaw {
         
         for(DetectorCounter bank : banks1B){
 	         if(bank.getChannels().size()==2){
-	             if(bank.isMultiHit()==false){
+	             //if(bank.isMultiHit()==false){
 	                 // isMultihit() method returns false when
 	                 //  (bank.getChannels().get(0).getADC().size()==1&&
 	                 //  bank.getChannels().get(1).getADC().size()==1&&
 	                 //  bank.getChannels().get(0).getTDC().size()==1&&
 	                 //  bank.getChannels().get(1).getTDC().size()==1)
 	                 // it checks if each channel has one ADC and one TDC.
-	            	 
+	        	 if (bank.getChannels().get(0).getADC().size()==1&&
+		                   bank.getChannels().get(1).getADC().size()==1&&
+		                   bank.getChannels().get(0).getTDC().size()>0&&
+		                   bank.getChannels().get(1).getTDC().size()>0) {	            	 
 	            	 
 	                 int adcL = bank.getChannels().get(0).getADC().get(0);
 	                 int adcR = bank.getChannels().get(1).getADC().get(0);
@@ -83,7 +86,7 @@ public class DataProviderRaw {
 	                 
 	                 TOFPaddle  tofPaddle = new TOFPaddle(
 	                         sector,
-	                         1, //layer,
+	                         2, //layer,
 	                         paddle,
 	                         adcL,
 	                         adcR,

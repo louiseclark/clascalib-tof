@@ -54,12 +54,13 @@ public class TOFLeftRight {
 	
 	public void init(){
 		DetectorDescriptor desc = new DetectorDescriptor();
-		for(int sector = 0; sector < 6; sector++){
-			for (int layer = 0; layer < 3; layer++) {
-				for(int paddle = 0; paddle < TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		for(int sector = 1; sector <= 6; sector++){
+			for (int layer = 1; layer <= 3; layer++) {
+				int layer_index = layer-1;
+				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 
 					desc.setSectorLayerComponent(sector, layer, paddle);
-					H1D hist = new H1D("Left Right Paddle "+paddle,"Left Right Paddle "+paddle, 
+					H1D hist = new H1D("Left Right Sector "+sector+" Paddle "+paddle,"Left Right Sector "+sector+" Paddle "+paddle, 
 											200, -1000.0, 1000.0);
 					container.put(desc.getHashCode(), hist);
 				}
@@ -68,9 +69,10 @@ public class TOFLeftRight {
 	}
 
 	public void analyze(){
-		for(int sector = 0; sector < 6; sector++){
-			for (int layer = 0; layer < 3; layer++) {
-				for(int paddle = 0; paddle < TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		for(int sector = 1; sector <= 6; sector++){
+			for (int layer = 1; layer <= 3; layer++) {
+				int layer_index = layer -1;
+				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 					fit(sector, layer, paddle, 0.0, 0.0);
 				}
 			}
@@ -218,7 +220,8 @@ public class TOFLeftRight {
 	
 	public void fillTable(int sector, int layer, ConstantsTable table) {
 		
-		for (int paddle=0; paddle<TOFCalibration.NUM_PADDLES[layer]; paddle++) {
+		int layer_index = layer -1;
+		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++) {
 			F1D f = getF1D(sector, layer, paddle)[EDGE_TO_EDGE];
 			table.addEntry(sector, layer, paddle);
 			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0").format(f.getMin())));
@@ -230,7 +233,8 @@ public class TOFLeftRight {
 	public TBookCanvas showFits(int sector, int layer) {
 		TBookCanvas		book = new TBookCanvas(2,2);
 		
-		for (int paddle=0; paddle<TOFCalibration.NUM_PADDLES[layer]; paddle++){
+		int layer_index = layer -1;
+		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 			book.add(getH1D(sector, layer, paddle), "");
 			book.add(getF1D(sector, layer, paddle)[EDGE_TO_EDGE], "same");
 			
