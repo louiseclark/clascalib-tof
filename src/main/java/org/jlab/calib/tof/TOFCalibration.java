@@ -5,6 +5,7 @@
  */
 package org.jlab.calib.tof;
 
+import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.List;
@@ -79,8 +80,12 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         JButton buttonViewAll = new JButton("View all");
         buttonViewAll.addActionListener(this);
         
+        JButton buttonAdjust = new JButton("Adjust HV");
+        buttonAdjust.addActionListener(this);
+        
         this.calibPane.getBottonPane().add(buttonFit);
         this.calibPane.getBottonPane().add(buttonViewAll);
+        this.calibPane.getBottonPane().add(buttonAdjust);
         
         hv.init();
         processFile(hv);
@@ -144,9 +149,9 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     public void update(DetectorShape2D dsd) {
     	// check any constraints
     	
-    	double mipChannel = hv.getCalibrationValue(dsd.getDescriptor().getSector(), 
+    	double mipChannel = hv.getMipChannel(dsd.getDescriptor().getSector(), 
 				   dsd.getDescriptor().getLayer(), 
-				   dsd.getDescriptor().getComponent(), hv.GEOMEAN, 1);
+				   dsd.getDescriptor().getComponent());
     	int layer_index = dsd.getDescriptor().getLayer()-1;
     	double expectedMipChannel = hv.EXPECTED_MIP_CHANNEL[layer_index];
     	
@@ -176,7 +181,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
     	//String file = "/home/louise/coatjava/FtofInputFile_panel1a1bS6_from_root_file1.evio";
     	
     	// Cole's file - use DataProviderRaw
-    	String file = "/home/louise/sector2_000251_mode7.evio.0";
+    	String file = "/home/louise/FTOF_calib_rewrite/input_files/sector2_000251_mode7.evio.0";
     	
         EvioSource reader = new EvioSource();
         reader.open(file);
@@ -186,7 +191,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         //decoder.addFitter(DetectorType.FTOF1A, new FADCBasicFitter(30,35,70,75));
         
         int maxEvents = 0;
-        int eventNum = 100;
+        int eventNum = 0;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
         	hv.processEvent(event, decoder);
@@ -225,6 +230,19 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         	viewAllFrame.pack();
         	viewAllFrame.setVisible(true);
         	viewAllFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        	
+        }
+        else if(e.getActionCommand().compareTo("Adjust HV")==0){
+
+        	
+        	JFrame hvFrame = new JFrame("Adjust HV");
+//        	JPanel outerPanel = new JPanel(new BorderLayout());
+//        	outerPanel.add(new TOFHVAdjustPanel(hv));
+//        	hvFrame.add(outerPanel);
+        	hvFrame.add(new TOFHVAdjustPanel(hv));
+        	hvFrame.pack();
+        	hvFrame.setVisible(true);
+        	hvFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         	
         }
     }

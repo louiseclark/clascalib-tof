@@ -105,9 +105,7 @@ public class TOFHighVoltage {
 				}
 			}
 		}
-		
-		double testL = newHV(2,1,10,-1610.0, "LEFT");
-		double testR = newHV(2,1,10,-1582.0, "RIGHT");
+
 	}
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
@@ -302,9 +300,9 @@ public class TOFHighVoltage {
 		Double[] consts = {logRatioMean, logRatioError};
 		constants.put(desc.getHashCode(), consts);
 
-	}	
-
-	public double newHV(int sector, int layer, int paddle, double origVoltage, String opt) {
+	}
+	
+	public double newHV(int sector, int layer, int paddle, double origVoltage, String pmt) {
 		
 		int layer_index = layer-1;
 		
@@ -312,26 +310,26 @@ public class TOFHighVoltage {
 		double centroid = getConst(sector, layer, paddle)[LR_CENTROID];
 		
 		double gainLR = 0.0;
-		if (opt == "LEFT") {
+		if (pmt == "LEFT") {
 			gainLR = gainIn / (Math.sqrt(Math.exp(centroid)));
 		}
 		else {
 			gainLR = gainIn * (Math.sqrt(Math.exp(centroid)));
 		}
 		
-		double deltaGainLeft = EXPECTED_MIP_CHANNEL[layer_index] - gainLR;
-		double deltaV = (origVoltage * deltaGainLeft) / (gainLR * ALPHA[layer_index]);
+		double deltaGain = EXPECTED_MIP_CHANNEL[layer_index] - gainLR;
+		double deltaV = (origVoltage * deltaGain) / (gainLR * ALPHA[layer_index]);
 		
 		double newVoltage = origVoltage + deltaV;
 
-		System.out.println(sector+" "+layer+" "+paddle+" "+opt);
-		System.out.println("origVoltage = "+origVoltage);
-		System.out.println("gainIn = "+gainIn);
-		System.out.println("centroid = "+centroid);
-		System.out.println("gainLR = "+gainLR);
-		System.out.println("deltaGainLeft = "+deltaGainLeft);
-		System.out.println("deltaV = "+deltaV);
-		System.out.println("return = "+newVoltage);
+//		System.out.println(sector+" "+layer+" "+paddle+" "+pmt);
+//		System.out.println("origVoltage = "+origVoltage);
+//		System.out.println("gainIn = "+gainIn);
+//		System.out.println("centroid = "+centroid);
+//		System.out.println("gainLR = "+gainLR);
+//		System.out.println("deltaGainLeft = "+deltaGain);
+//		System.out.println("deltaV = "+deltaV);
+//		System.out.println("return = "+newVoltage);
 		
 		
 		return newVoltage;
@@ -356,7 +354,7 @@ public class TOFHighVoltage {
 
 		}	 
 	}
-
+	
 	public TOFH1D[] getH1D(int sector, int layer, int paddle){
 		return this.container.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}
@@ -366,6 +364,10 @@ public class TOFHighVoltage {
 	public Double[] getConst(int sector, int layer, int paddle){
 		return this.constants.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}	
+	
+	public double getMipChannel(int sector, int layer, int paddle) {
+		return getCalibrationValue(sector, layer, paddle, GEOMEAN, 1);
+	}
 	
 	public double getCalibrationValue(int sector, int layer, int paddle, int funcNum, int param) {
 		
