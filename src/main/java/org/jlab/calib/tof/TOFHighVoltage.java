@@ -5,20 +5,34 @@
  */
 package org.jlab.calib.tof;
 
+import java.awt.Component;
 import java.awt.EventQueue;
 import java.awt.Font;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.DateFormat;
 import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 
 import org.jlab.clas.detector.*;
 import org.jlab.clas12.detector.EventDecoder;
 import org.jlab.evio.clas12.*;
+import org.jlab.rec.ftof.FTOFPaddle;
+import org.root.data.DataSetXY;
 import org.root.func.*;
 import org.root.histogram.*;
 import org.root.pad.*;
@@ -39,9 +53,13 @@ public class TOFHighVoltage {
 	public final int LOGRATIO = 1;
 	public final int LR_CENTROID = 0;
 	public final int LR_ERROR = 1;
+	public final int CURRENT_VOLTAGE_LEFT = 2;
+	public final int CURRENT_VOLTAGE_RIGHT = 3;
 	
 	private final double[]		GM_HIST_MAX = {4000.0,8000.0,3000.0};
 	private final int[]			GM_HIST_BINS = {200, 300, 150};
+	private final double[]		GM_RANGE_MIN = {300.0, 700.0, 300.0};
+	private final double[]		GM_RANGE_MAX = {3000.0, 6000.0, 2700.0};
 	private final double 		LR_THRESHOLD_FRACTION = 0.2;
 	private final int			GM_REBIN_THRESHOLD = 50000;
 
@@ -88,7 +106,7 @@ public class TOFHighVoltage {
 									
 					TOFH1D hists[] = {new TOFH1D("Geometric Mean Sector "+sector+" Paddle "+paddle,"Geometric Mean Sector "+sector+" Paddle "+paddle, 
 											GM_HIST_BINS[layer_index], 0.0, GM_HIST_MAX[layer_index]),
-								   new TOFH1D("Log Ratio Sector "+sector+" Paddle "+paddle,"Log Ratio Sector "+sector+" Paddle "+paddle, 75,-3.0,3.0)};
+								   new TOFH1D("Log Ratio Sector "+sector+" Paddle "+paddle,"Log Ratio Sector "+sector+" Paddle "+paddle, 75,-6.0,6.0)};
 					container.put(desc.getHashCode(), hists);
 				}
 			}
@@ -120,7 +138,10 @@ public class TOFHighVoltage {
 			Font font = new Font("Verdana", Font.PLAIN, 7);		
 			canvas.getPad().setFont(font);
 			
-			canvas.draw(this.getH1D(sector, layer, paddle)[i],"");
+			H1D hist = getH1D(sector, layer, paddle)[i];
+			hist.setLineColor(1);
+			
+			canvas.draw(hist,"");
 			canvas.draw(this.getF1D(sector, layer, paddle)[i],"same");
 		}
 		
@@ -130,6 +151,13 @@ public class TOFHighVoltage {
 			double minRange, double maxRange){
 
 		int layer_index = layer-1;
+
+		/////// TEST CODE
+		if (minRange==0.0 && maxRange==0.0) {
+			minRange = GM_RANGE_MIN[layer_index];
+			maxRange = GM_RANGE_MAX[layer_index];
+		}
+
 		TOFH1D h = this.getH1D(sector, layer, paddle)[GEOMEAN];
 
 		// First rebin depending on number of entries
@@ -297,17 +325,15 @@ public class TOFHighVoltage {
 		functions.put(desc.getHashCode(), funcs);
 		
 		// put the constants in the treemap
-		Double[] consts = {logRatioMean, logRatioError};
+		Double[] consts = {logRatioMean, logRatioError, 
+						   0.0, 0.0};
 		constants.put(desc.getHashCode(), consts);
 
 	}
 	
-	public double newHV(int sector, int layer, int paddle, double origVoltage, String pmt) {
+public double newHVTest(int layer, double origVoltage, double gainIn, double centroid, String pmt) {
 		
-		int layer_index = layer-1;
-		
-		double gainIn = getF1D(sector, layer, paddle)[GEOMEAN].getParameter(1);
-		double centroid = getConst(sector, layer, paddle)[LR_CENTROID];
+		int layer_index = layer - 1;
 		
 		double gainLR = 0.0;
 		if (pmt == "LEFT") {
@@ -315,6 +341,51 @@ public class TOFHighVoltage {
 		}
 		else {
 			gainLR = gainIn * (Math.sqrt(Math.exp(centroid)));
+		}
+		
+		double deltaGain = EXPECTED_MIP_CHANNEL[layer_index] - gainLR;
+		double deltaV = (origVoltage * deltaGain) / (gainLR * ALPHA[layer_index]);
+		
+		double newVoltage = origVoltage + deltaV;
+
+//		System.out.println(sector+" "+layer+" "+paddle+" "+pmt);
+//		System.out.println("origVoltage = "+origVoltage);
+//		System.out.println("gainIn = "+gainIn);
+//		System.out.println("centroid = "+centroid);
+//		System.out.println("gainLR = "+gainLR);
+//		System.out.println("deltaGainLeft = "+deltaGain);
+//		System.out.println("deltaV = "+deltaV);
+//		System.out.println("return = "+newVoltage);
+		
+		
+		return newVoltage;
+		
+	}
+	
+	
+	public double newHV(int sector, int layer, int paddle, double origVoltage, String pmt) {
+		
+		int layer_index = layer-1;
+		DetectorDescriptor desc = new DetectorDescriptor();
+		desc.setSectorLayerComponent(sector, layer, paddle);
+		
+		double gainIn = getF1D(sector, layer, paddle)[GEOMEAN].getParameter(1);
+		double centroid = getConst(sector, layer, paddle)[LR_CENTROID];
+		
+		double gainLR = 0.0;
+		if (pmt == "LEFT") {
+			gainLR = gainIn / (Math.sqrt(Math.exp(centroid)));
+			// put the constants in the treemap
+			Double[] consts = {getConst(sector, layer, paddle)[LR_CENTROID], getConst(sector, layer, paddle)[LR_ERROR], 
+							   origVoltage, getConst(sector, layer, paddle)[CURRENT_VOLTAGE_RIGHT]};
+			constants.put(desc.getHashCode(), consts);
+		}
+		else {
+			gainLR = gainIn * (Math.sqrt(Math.exp(centroid)));
+			// put the constants in the treemap
+			Double[] consts = {getConst(sector, layer, paddle)[LR_CENTROID], getConst(sector, layer, paddle)[LR_ERROR], 
+					getConst(sector, layer, paddle)[CURRENT_VOLTAGE_LEFT], origVoltage};
+			constants.put(desc.getHashCode(), consts);
 		}
 		
 		double deltaGain = EXPECTED_MIP_CHANNEL[layer_index] - gainLR;
@@ -384,7 +455,8 @@ public class TOFHighVoltage {
 		return calibVal;
 	}
 	
-	public void fillTable(int sector, int layer, ConstantsTable table) {
+	public void fillTable(int sector, int layer, final ConstantsTable table) {
+		
 		
 		int layer_index = layer-1;
 		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++) {
@@ -392,15 +464,82 @@ public class TOFHighVoltage {
 			F1D f = getF1D(sector, layer, paddle)[GEOMEAN];
 			Double lrCentroid = getConst(sector, layer, paddle)[LR_CENTROID];
 			Double lrError = getConst(sector, layer, paddle)[LR_ERROR];
+			Double gmError = f.parameter(1).error();
 			table.addEntry(sector, layer, paddle);
 			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0.0").format(f.getParameter(1))));
-			table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(f.parameter(1).error())));
+			if (Double.isFinite(gmError)){
+				table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(gmError)));
+			}
+			else {
+				table.getEntry(sector, layer, paddle).setData(1, 9999.0);
+			}
 			table.getEntry(sector, layer, paddle).setData(2, Double.parseDouble(new DecimalFormat("0.000").format(lrCentroid)));
-			table.getEntry(sector, layer, paddle).setData(3, Double.parseDouble(new DecimalFormat("0.000").format(lrError)));
+			if (Double.isFinite(lrError)) {
+				table.getEntry(sector, layer, paddle).setData(3, Double.parseDouble(new DecimalFormat("0.000").format(lrError)));
+			}
+			else {
+				table.getEntry(sector, layer, paddle).setData(3, 9999.0);
+			}
 
 		}
 	}
+	
+	public String writeTable(ConstantsTable table) {
+		
+		String outputFileName = nextFileName();
+		
+		try { 
+			
+			// Open the output file
+			File outputFile = new File(outputFileName);
+			FileWriter outputFw = new FileWriter(outputFile.getAbsoluteFile());
+			BufferedWriter outputBw = new BufferedWriter(outputFw);
+			
+			
+			for (int i=0; i< table.getRowCount(); i++) {
+                
+				for (int j=0; j<table.getColumnCount(); j++) {
+					outputBw.write(table.getValueAt(i,j)+" ");
+				}
+				outputBw.newLine();
+			}
+		
+    		outputBw.close();
+        }
+        catch(IOException ex) {
+            ex.printStackTrace();
+		}
+		
+		return outputFileName;
+		
+	}
+	
+	public String nextFileName() {
+		
+		// Get the next file name
+		Date today = new Date();
+		DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+		String todayString = dateFormat.format(today);
+		String filePrefix = "FTOF_CALIB_HV_"+todayString;
+		int newFileNum = 0;
 
+		File dir = new File(".");
+		File[] filesList = dir.listFiles();
+
+		for (File file : filesList) {
+			if (file.isFile()) {
+				String fileName = file.getName();
+				if (fileName.matches(filePrefix+"[.]\\d+[.]txt")) {
+					String fileNumString = fileName.substring(fileName.indexOf('.')+1,fileName.lastIndexOf('.'));
+					int fileNum = Integer.parseInt(fileNumString);
+					if (fileNum >= newFileNum) newFileNum = fileNum+1;
+
+				}
+			}
+		}
+
+		return filePrefix+"."+newFileNum+".txt";
+	}
 	
 	public TBookCanvas showFits(int sector, int layer) {
 		
@@ -414,6 +553,50 @@ public class TOFHighVoltage {
 		}
 		return book;
 	}
+	
+	public void viewFits(int sector, int layer, int plotType) {
+		
+		// Open up canvases to show all the fits
+		String[] PANEL_NAME = {"FTOF 1A", "FTOF 1B", "FTOF 2"};
+		
+		int layer_index = layer -1;
+		TCanvas[] fitCanvases;
+		fitCanvases = new TCanvas[3];
+		fitCanvases[0] = new TCanvas("All fits for "+PANEL_NAME[layer_index]+" sector "+sector,"All fits for "+PANEL_NAME[layer_index]+" sector "+sector,1200,800,6,4);
+		fitCanvases[0].setFontSize(7);
+		fitCanvases[0].setDefaultCloseOperation(fitCanvases[0].HIDE_ON_CLOSE);
+		
+		int canvasNum = 0;
+		int padNum = 0;
+		
+		for (int paddleNum=1; paddleNum <= TOFCalibration.NUM_PADDLES[layer_index]; paddleNum++) {
+			
+			H1D fitHist = getH1D(sector, layer, paddleNum)[plotType];
+						
+			fitCanvases[canvasNum].cd(padNum);
+			fitHist.setLineColor(2);
+			fitHist.setTitle("Paddle "+paddleNum);
+			fitCanvases[canvasNum].draw(fitHist);
+			
+			F1D fitFunc = getF1D(sector, layer, paddleNum)[plotType];
+			fitCanvases[canvasNum].draw(fitFunc, "same");
+			
+    		padNum = padNum+1;
+    		
+    		if ((paddleNum)%24 == 0) {
+    			// new canvas
+    			canvasNum = canvasNum+1;
+    			padNum = 0;
+    			
+	    		fitCanvases[canvasNum] = new TCanvas("All fits for "+PANEL_NAME[layer_index]+" sector "+sector,"All fits for "+PANEL_NAME[layer_index]+" sector "+sector,1200,800,6,4);
+	    		fitCanvases[canvasNum].setFontSize(7);
+	    		fitCanvases[canvasNum].setDefaultCloseOperation(fitCanvases[canvasNum].HIDE_ON_CLOSE);
+
+    		}
+			
+		}
+				
+	}	
 	
 	public void show(){
 		for(Map.Entry<Integer,TOFH1D[]> item : this.container.entrySet()){

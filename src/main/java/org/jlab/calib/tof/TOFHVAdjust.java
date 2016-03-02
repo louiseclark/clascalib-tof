@@ -8,6 +8,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.DateFormat;
+import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -48,7 +49,7 @@ public class TOFHVAdjust {
                 String[] lineValues;
                 lineValues = line.split(" ");
                 
-                double origVoltage = Double.parseDouble(lineValues[2]);
+                double origVoltage = Double.parseDouble(lineValues[2]) * (-1.0);
                 if (origVoltage==0.0) {
                 	//System.out.println("Skipping");
                 	line = bufferedReader.readLine();
@@ -58,13 +59,19 @@ public class TOFHVAdjust {
                 double newHV = hv.newHV(sector, layer, paddle, origVoltage, pmt);
                 
                 //System.out.println("Writing "+lineValues[0]+" "+lineValues[1]+" "+newHV);
-                outputBw.write(lineValues[0]+" "+lineValues[1]+" "+newHV);
+                outputBw.write(lineValues[0]+" "+lineValues[1]+" "+(int) Math.round(newHV * (-1.0))+".");
 				outputBw.newLine();
                 
                 // Put entry in the display table
                 hvTable.addEntry(sector, layer, paddle);
-    			hvTable.getEntry(sector, layer, paddle).setData(0, origVoltage);
-    			hvTable.getEntry(sector, layer, paddle).setData(1, newHV);
+                if (pmt=="LEFT") {
+                	hvTable.getEntry(sector, layer, paddle).setData(0, 0);
+                }
+                else {
+                	hvTable.getEntry(sector, layer, paddle).setData(0, 1);                	
+				}
+                hvTable.getEntry(sector, layer, paddle).setData(1, (int) Math.round(origVoltage));
+    			hvTable.getEntry(sector, layer, paddle).setData(2, (int) Math.round(newHV));
                 
                 
 				if (layer==1 && paddle==23) {

@@ -37,7 +37,7 @@ public class TOFHVAdjustPanel 	extends JPanel
 		setLayout(new FlowLayout());
 		
 		JPanel buttonPanel = new JPanel(new FlowLayout());
-		hvTable = new ConstantsTable(DetectorType.FTOF,new String[]{"Current HV","New HV"});
+		hvTable = new ConstantsTable(DetectorType.FTOF,new String[]{"PMT","Current HV","New HV"});
 		tablePanel= new ConstantsTablePanel(hvTable);
 		tablePane = new JPanel(new BorderLayout());
 		tablePane.add(tablePanel);
@@ -64,21 +64,18 @@ public class TOFHVAdjustPanel 	extends JPanel
 	public void actionPerformed(ActionEvent e) {
 		
 		if(e.getSource() == fileButton) {
-
+			
+			fc.setCurrentDirectory(new File("/home/louise/FTOF_calib_rewrite/input_files/hvfiles"));
 			int returnValue = fc.showOpenDialog(null);
 			if (returnValue == JFileChooser.APPROVE_OPTION) {
 				
 				TOFHVAdjust adj = new TOFHVAdjust();
 				String outputFileName = adj.processFile(hv, hvTable, fc.getSelectedFile().getAbsolutePath(), 2);
-				JOptionPane.showMessageDialog(new JPanel(),"Calibration values written to "+outputFileName);
+				JOptionPane.showMessageDialog(new JPanel(),"High voltage values written to "+outputFileName);
 				
-//				add(new JLabel(fc.getSelectedFile().getName()));
+				hvTable.fireTableDataChanged();
 				
-				tablePanel.repaint();
-				tablePane.repaint();
-				tablePanel.requestFocus();
-				validate();
-				repaint();
+				TOFCalibration.testHVCalcs();
 			}
 		
 		}
