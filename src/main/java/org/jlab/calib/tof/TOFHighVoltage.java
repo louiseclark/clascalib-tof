@@ -5,14 +5,9 @@
  */
 package org.jlab.calib.tof;
 
-import java.awt.Component;
-import java.awt.EventQueue;
 import java.awt.Font;
-import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.DateFormat;
@@ -23,16 +18,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import javax.swing.JDialog;
 import javax.swing.JOptionPane;
-import javax.swing.SwingUtilities;
-import javax.swing.table.DefaultTableModel;
 
 import org.jlab.clas.detector.*;
 import org.jlab.clas12.detector.EventDecoder;
 import org.jlab.evio.clas12.*;
-import org.jlab.rec.ftof.FTOFPaddle;
-import org.root.data.DataSetXY;
 import org.root.func.*;
 import org.root.histogram.*;
 import org.root.pad.*;
@@ -115,7 +105,9 @@ public class TOFHighVoltage {
 
 	public void analyze(){
 		for(int sector = 1; sector <= 6; sector++){
+		//for(int sector = 2; sector <= 2; sector++){
 			for (int layer = 1; layer <= 3; layer++) {
+			//for (int layer = 1; layer <= 2; layer++) {
 				int layer_index = layer-1;
 				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
 					fitGeoMean(sector, layer, paddle, 0.0, 0.0);
@@ -153,10 +145,10 @@ public class TOFHighVoltage {
 		int layer_index = layer-1;
 
 		/////// TEST CODE
-		if (minRange==0.0 && maxRange==0.0) {
-			minRange = GM_RANGE_MIN[layer_index];
-			maxRange = GM_RANGE_MAX[layer_index];
-		}
+//		if (minRange==0.0 && maxRange==0.0) {
+//			minRange = GM_RANGE_MIN[layer_index];
+//			maxRange = GM_RANGE_MAX[layer_index];
+//		}
 
 		TOFH1D h = this.getH1D(sector, layer, paddle)[GEOMEAN];
 
@@ -195,6 +187,9 @@ public class TOFHighVoltage {
 		}
 
 		// find the maximum bin after the start channel for the fit
+		System.out.println("Paddle " + paddle);
+		System.out.println("Start channel " + startChannelForFit);
+		System.out.println("End channel " + endChannelForFit);
 		int startBinForFit = h.getxAxis().getBin(startChannelForFit);
 		int endBinForFit = h.getxAxis().getBin(endChannelForFit);
 
@@ -210,13 +205,23 @@ public class TOFHighVoltage {
 		double maxPos = h.getAxis().getBinCenter(maxBin);
 		F1D gmFunc = new F1D("landau+exp",startChannelForFit, endChannelForFit);
 		
-		gmFunc.setParameter(0, maxCounts);
-		gmFunc.setParameter(1, maxPos);
-		gmFunc.setParameter(2, 100.0);
-		gmFunc.setParLimits(2, 0.0,400.0);
-		gmFunc.setParameter(3, 20.0);
-		gmFunc.setParameter(4, 0.0);
-		h.fit(gmFunc, "R");	
+		System.out.println("maxCounts "+maxCounts);
+		System.out.println("maxPos "+maxPos);
+		
+		double[] params = {maxCounts, maxPos, 200.0, 600.0, -0.001};
+		
+		gmFunc.setParameters(params);
+//		gmFunc.setParameter(0, maxCounts);
+//		gmFunc.setParameter(1, maxPos);
+//		//gmFunc.setParameter(2, 100.0);
+//		gmFunc.setParameter(2, 200.0);
+////		gmFunc.setParLimits(2, 0.0,400.0);
+//		//gmFunc.setParameter(3, 20.0);
+//		gmFunc.setParameter(3, 600.0);
+//		//gmFunc.setParameter(4, 0.0);
+//		gmFunc.setParameter(4, -0.001);
+		h.fit(gmFunc, "RN");	
+		
 		
 		DetectorDescriptor desc = new DetectorDescriptor();
 		desc.setSectorLayerComponent(sector, layer, paddle);
@@ -369,6 +374,7 @@ public double newHVTest(int layer, double origVoltage, double gainIn, double cen
 		DetectorDescriptor desc = new DetectorDescriptor();
 		desc.setSectorLayerComponent(sector, layer, paddle);
 		
+		System.out.println("new HV "+sector+layer+paddle);
 		double gainIn = getF1D(sector, layer, paddle)[GEOMEAN].getParameter(1);
 		double centroid = getConst(sector, layer, paddle)[LR_CENTROID];
 		

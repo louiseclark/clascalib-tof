@@ -87,6 +87,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
                 new String[]{"Geometric Mean Peak","Uncertainty", "Log Ratio Centroid", "Uncertainty"});
 
         this.constantsTablePanel = new ConstantsTablePanel(this.constantsTable);
+        
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
         
@@ -111,11 +112,13 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         
         processFile(hv);
         // Display sector 1 initially
-        hv.drawComponent(1, 1, 1, canvas);
+        hv.drawComponent(2, 1, 1, canvas);
         
         // Until I can delete rows from the table will just add all sectors
         for (int sector=1; sector<=6; sector++) {
+        //for (int sector=2; sector<=2; sector++) {
         	for (int layer=1; layer<=3; layer++) {
+        	//for (int layer=1; layer<=2; layer++) {
         		hv.fillTable(sector, layer, constantsTable);
         	}
         }
@@ -244,7 +247,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
 	    	
 	    	constantsTable.getEntry(sector, layer, paddle).setData(0, Math.round(f.getParameter(1)));
 	    	constantsTable.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(f.parameter(1).error())));
-			constantsTable.fireTableDataChanged();
+			//constantsTable.fireTableDataChanged();
 			
 			hv.drawComponent(sector, layer, paddle, canvas);
 			calibPane.repaint();

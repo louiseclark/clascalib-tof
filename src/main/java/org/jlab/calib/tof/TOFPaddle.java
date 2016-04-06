@@ -19,6 +19,7 @@ public class TOFPaddle {
     public int ADCR = 0;
     public int TDCL = 0;
     public int TDCR = 0;
+    public double POSITION = 0.0; 
     
     public TOFPaddle(int sector, int layer, int paddle){
         this.desc.setSectorLayerComponent(sector, layer, paddle);
