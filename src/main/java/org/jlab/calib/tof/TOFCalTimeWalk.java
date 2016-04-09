@@ -216,13 +216,11 @@ public class TOFCalTimeWalk implements IDetectorListener,IConstantsTableListener
         reader.open(file);
         System.out.println(reader.getSize());
         
-        EventDecoder decoder = new EventDecoder();
-        
         int maxEvents = 0;
         int eventNum = 0;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
-        	tw.processEvent(event, decoder);
+        	tw.processEvent(event);
         	eventNum++;
         }
 

@@ -18,6 +18,15 @@ public class DataProvider {
     
     public static List<TOFPaddle> getPaddleList(EvioDataEvent event){
         ArrayList<TOFPaddle>  paddleList = new ArrayList<TOFPaddle>();
+        
+        float xpos = 0;
+        float ypos = 0;
+        if (event.hasBank("FTOFRec::ftofhits")) {
+        	EvioDataBank recBank = (EvioDataBank) event.getBank("FTOFRec::ftofhits");
+        	xpos = recBank.getFloat("x",0);
+        	ypos = recBank.getFloat("y",0);
+        }
+        
         if(event.hasBank("FTOF1A::dgtz")==true){
             EvioDataBank bank = (EvioDataBank) event.getBank("FTOF1A::dgtz");
             for(int loop = 0; loop < bank.rows(); loop++){
@@ -28,8 +37,9 @@ public class DataProvider {
                         bank.getInt("ADCL", loop),
                         bank.getInt("ADCR", loop),
                         bank.getInt("TDCL", loop),
-                        bank.getInt("TDCR", loop)
-                        
+                        bank.getInt("TDCR", loop),
+                        xpos,
+                        ypos
                 );
                 paddleList.add(paddle);
             }
@@ -44,7 +54,9 @@ public class DataProvider {
                         bank.getInt("ADCL", loop),
                         bank.getInt("ADCR", loop),
                         bank.getInt("TDCL", loop),
-                        bank.getInt("TDCR", loop)
+                        bank.getInt("TDCR", loop),
+                        xpos,
+                        ypos
                         
                 );
                 paddleList.add(paddle);
@@ -60,7 +72,9 @@ public class DataProvider {
                         bank.getInt("ADCL", loop),
                         bank.getInt("ADCR", loop),
                         bank.getInt("TDCL", loop),
-                        bank.getInt("TDCR", loop)
+                        bank.getInt("TDCR", loop),
+                        xpos,
+                        ypos
                         
                 );
                 paddleList.add(paddle);

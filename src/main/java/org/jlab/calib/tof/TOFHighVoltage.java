@@ -473,14 +473,14 @@ public double newHVTest(int layer, double origVoltage, double gainIn, double cen
 			Double gmError = f.parameter(1).error();
 			table.addEntry(sector, layer, paddle);
 			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0.0").format(f.getParameter(1))));
-			if (Double.isFinite(gmError)){
+			if (!Double.isInfinite(gmError)){
 				table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(gmError)));
 			}
 			else {
 				table.getEntry(sector, layer, paddle).setData(1, 9999.0);
 			}
 			table.getEntry(sector, layer, paddle).setData(2, Double.parseDouble(new DecimalFormat("0.000").format(lrCentroid)));
-			if (Double.isFinite(lrError)) {
+			if (!Double.isInfinite(lrError)) {
 				table.getEntry(sector, layer, paddle).setData(3, Double.parseDouble(new DecimalFormat("0.000").format(lrError)));
 			}
 			else {

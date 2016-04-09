@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -48,36 +49,13 @@ public class TOFTimeWalk {
 	// the number of cycles of corrections
 	private final int			NUM_ITERATIONS = 5;
 		
-	public void processEvent(EvioDataEvent event, EventDecoder decoder){
+	public void processEvent(EvioDataEvent event){
 		
 		//List<TOFPaddle> list = DataProvider.getPaddleList(event);
-		List<TOFPaddle> list = DataProviderRaw.getPaddleList(event, decoder);
+		List<TOFPaddle> list = DataProvider.getPaddleList(event);
 		this.process(list);
 	}
 
-	private double veffOffset(TOFPaddle paddle) {
-		return 0.0; // get from calibration database, store locally to save going to database for every event
-	}
-	
-	private double veff(TOFPaddle paddle) {
-		return 16.0; // get from calibration database, store locally to save going to database for every event
-	}
-	
-	private double[] timeResiduals(TOFPaddle paddle, double[] lambda, double[] order) {
-		double[] tr = {0.0, 0.0};
-		
-		double timeL = paddle.TDCL - veffOffset(paddle);
-		double timeR = paddle.TDCR + veffOffset(paddle);
-		
-		double timeLCorr = timeL + (lambda[LEFT]/Math.pow(paddle.ADCL, order[LEFT]));
-		double timeRCorr = timeR + (lambda[RIGHT]/Math.pow(paddle.ADCL, order[RIGHT]));
-		
-		tr[LEFT] = ((timeL - timeRCorr)/2) - (paddle.POSITION/veff(paddle));
-		tr[RIGHT] =  - ((timeLCorr - timeR)/2) + (paddle.POSITION/veff(paddle));
-		
-		return tr;
-	}
-	
 	public void process(List<TOFPaddle> paddleList){
 		
 		// paddle list is processed 5 times each time correcting the time using refined values for lambda and order
@@ -90,10 +68,12 @@ public class TOFTimeWalk {
 				if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
 					
 					// fill timeResidual vs ADC
-					double [] tr = timeResiduals(paddle, lambda, order);
+					double [] tr = paddle.timeResiduals(lambda, order);
 					
-					this.container.get(paddle.getDescriptor().getHashCode())[LEFT].fill(paddle.ADCL, tr[LEFT]);
-					this.container.get(paddle.getDescriptor().getHashCode())[RIGHT].fill(paddle.ADCL, tr[RIGHT]);
+					if (paddle.includeInTimeWalk()) {
+						this.container.get(paddle.getDescriptor().getHashCode())[LEFT].fill(paddle.ADCL, tr[LEFT]);
+						this.container.get(paddle.getDescriptor().getHashCode())[RIGHT].fill(paddle.ADCL, tr[RIGHT]);
+					}
 
 				} else {
 					System.out.println("Cant find : " + paddle.getDescriptor().toString() );
@@ -113,18 +93,18 @@ public class TOFTimeWalk {
 					desc.setSectorLayerComponent(sector, layer, paddle);
 									
 					H2D[] hists = {
-					new H2D("Time residual vs ADC Sector LEFT"+desc.getSector()+
+					new H2D("Time residual vs ADC LEFT Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
-							"Time residual vs ADC Sector LEFT"+desc.getSector()+
-							" Paddle "+desc.getComponent(),
-							100, 0.0, 2000.0,
-							100, 0.0, 2000.0),
-					new H2D("Time residual vs ADC Sector RIGHT"+desc.getSector()+
-							" Paddle "+desc.getComponent(),
-							"Time residual vs ADC Sector RIGHT"+desc.getSector()+
+							"Time residual vs ADC LEFT Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
 							100, 0.0, 2000.0,
-							100, 0.0, 2000.0)};
+							100, -10.0, 10.0),
+					new H2D("Time residual vs ADC RIGHT Sector "+desc.getSector()+
+							" Paddle "+desc.getComponent(),
+							"Time residual vs ADC RIGHT Sector "+desc.getSector()+
+							" Paddle "+desc.getComponent(),
+							100, 0.0, 2000.0,
+							100, -10.0, 10.0)};
 					container.put(desc.getHashCode(), hists);
 				}
 			}
@@ -138,12 +118,51 @@ public class TOFTimeWalk {
 			//for (int layer = 1; layer <= 2; layer++) {
 				int layer_index = layer-1;
 				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
-					//fitGeoMean(sector, layer, paddle, 0.0, 0.0);
-					//fitLogRatio(sector, layer, paddle, 0.0, 0.0);
+					fitTimeWalk(sector, layer, paddle);
 				}
 			}
 		}
-
+	}
+	
+	public void fitTimeWalk(int sector, int layer, int paddle) {
+		
+		 
+		
+		if (paddle==9 && sector==1 && layer==1) {
+			H2D twL = getH2D(sector, layer, paddle)[LEFT];
+			
+			ArrayList<H1D> twLSlices = twL.getSlicesX();
+			int numBins = twL.getXAxis().getNBins();
+			
+			double[] binSlices = new double[numBins];
+			double[] means = new double[numBins];
+			
+			for (int i=0; i<numBins; i++) {
+				
+				H1D h = twLSlices.get(i);
+				F1D f = new F1D("gaus",-2.0,2.0);
+				f.setParameter(0, 250.0);
+				f.setParameter(1, 0.0);
+				f.setParameter(2, 2.0);
+				h.fit(f, "RN");
+				
+				binSlices[i] = twL.getXAxis().getBinCenter(i);
+				means[i] = f.getParameter(1);
+			
+				if (i==50) {
+					TCanvas c1 = new TCanvas("Test slices","Test slices",1200,800,1,1);
+					c1.setDefaultCloseOperation(c1.HIDE_ON_CLOSE);
+					c1.cd(0);
+					c1.draw(h);
+					c1.draw(f,"same");
+				}
+		
+			}
+			GraphErrors meanGraph = new GraphErrors("Mean Graph", binSlices, means);
+			TCanvas c2 = new TCanvas("Mean Graph","Mean Graph",1200,800);
+			c2.setDefaultCloseOperation(c2.HIDE_ON_CLOSE);
+			c2.draw(meanGraph);
+		}
 	}
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
@@ -159,10 +178,11 @@ public class TOFTimeWalk {
 			canvas.getPad().setFont(font);
 			
 			H2D hist = getH2D(sector, layer, paddle)[i];
+			System.out.println(hist.getName());
 			//hist.setLineColor(1);
 			
 			canvas.draw(hist,"");
-			canvas.draw(this.getF1D(sector, layer, paddle)[i],"same");
+			//canvas.draw(this.getF1D(sector, layer, paddle)[i],"same");
 		}
 		
 	}
@@ -218,7 +238,7 @@ public class TOFTimeWalk {
 		int layer_index = layer-1;
 		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++) {
 			
-			F1D f = getF1D(sector, layer, paddle)[LEFT];
+			//F1D f = getF1D(sector, layer, paddle)[LEFT];
 //			Double lrCentroid = getConst(sector, layer, paddle)[LR_CENTROID];
 			table.addEntry(sector, layer, paddle);
 //			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0.0").format(f.getParameter(1))));

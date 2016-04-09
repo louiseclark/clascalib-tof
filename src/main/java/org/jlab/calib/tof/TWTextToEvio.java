@@ -47,22 +47,24 @@ public class TWTextToEvio {
             EvioDataEvent  event = EvioFactory.createEvioEvent();
             while ((maxLines==0 || lineNum<maxLines) && (line != null)) {
 
-            	// Each line contains sector, paddle, Adc L, Adc R, Tdc L, Tdc R, y pos, 2 other values
+            	// Each line contains sector, paddle, Adc L, Adc R, Tdc L, Tdc R, x, y, z
             	String[] lineValues;
             	lineValues = line.split(" ");
 
             	int sector = Integer.parseInt(lineValues[0]);
             	int paddle = Integer.parseInt(lineValues[1]);
-            	int adcLeft = Integer.parseInt(lineValues[2]);
-            	int adcRight = Integer.parseInt(lineValues[3]);
+            	int adcLeft = Integer.parseInt(lineValues[2]) -440; // subtract the pedestal for S1P10
+            	int adcRight = Integer.parseInt(lineValues[3]) -410;
             	int tdcLeft = Integer.parseInt(lineValues[4]);
             	int tdcRight = Integer.parseInt(lineValues[5]);
-            	double position = Double.parseDouble(lineValues[6]);
+            	float xpos = Float.parseFloat(lineValues[6]);
+            	float ypos = Float.parseFloat(lineValues[7]);
 
             	event = EvioFactory.createEvioEvent();
 
 
-            	EvioDataBank   bankFTOF1A = EvioFactory.createEvioBank("FTOF1A::dgtz", 1);
+            	EvioDataBank   bankFTOF1A = EvioFactory.createEvioBank  ("FTOF1A::dgtz", 1);
+            	EvioDataBank   bankFTOFRec = EvioFactory.createEvioBank("FTOFRec::ftofhits", 1);
 
             	bankFTOF1A.setInt("sector", 0, sector);
             	bankFTOF1A.setInt("paddle", 0, paddle);
@@ -70,11 +72,15 @@ public class TWTextToEvio {
             	bankFTOF1A.setInt("ADCR",   0, adcRight);
             	bankFTOF1A.setInt("TDCL",	0, tdcLeft);
             	bankFTOF1A.setInt("TDCR",   0, tdcRight);
-            	bankFTOF1A.setDouble("YPOS", 0, position);
+            	
+            	bankFTOFRec.setFloat("x", 0, xpos);
+            	bankFTOFRec.setFloat("y", 0, ypos);
 
             	event.appendBanks(bankFTOF1A);
+            	event.appendBanks(bankFTOFRec);
 
-
+            	writer.writeEvent(event);
+            	
             	line = bufferedReader.readLine();
             	lineNum++;
             }    

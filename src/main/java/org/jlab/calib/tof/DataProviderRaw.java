@@ -42,6 +42,7 @@ public class DataProviderRaw {
 	                 int adcR = bank.getChannels().get(1).getADC().get(0);
 	                 int tdcL = bank.getChannels().get(0).getTDC().get(0);
 	                 int tdcR = bank.getChannels().get(1).getTDC().get(0);
+	                 
 	                 int sector = bank.getDescriptor().getSector();
 	                 int layer  = bank.getDescriptor().getLayer();
 	                 int paddle = bank.getDescriptor().getComponent();
