@@ -59,8 +59,14 @@ public class TOFTimeWalk {
 	public void process(List<TOFPaddle> paddleList){
 		
 		// paddle list is processed 5 times each time correcting the time using refined values for lambda and order
-		double[] lambda = {0.0,0.0};
-		double[] order = {2.0,2.0};
+		//double[] lambda = {0.0,0.0};
+		//double[] order = {2.0,2.0};
+		
+		double[] lambda = {1.0,1.0};
+		double[] order = {0.5,0.5};
+		
+		//double[] lambda = {-21435.6,21435.6};
+		//double[] order = {2.0,2.0};
 		
 		//for (int i=0; i < NUM_ITERATIONS; i++) {
 			
@@ -71,8 +77,10 @@ public class TOFTimeWalk {
 					double [] tr = paddle.timeResiduals(lambda, order);
 					
 					if (paddle.includeInTimeWalk()) {
-						this.container.get(paddle.getDescriptor().getHashCode())[LEFT].fill(paddle.ADCL, tr[LEFT]);
-						this.container.get(paddle.getDescriptor().getHashCode())[RIGHT].fill(paddle.ADCL, tr[RIGHT]);
+						double adcL = paddle.ADCL - paddle.getPedestalL();
+						double adcR = paddle.ADCR - paddle.getPedestalR();
+						this.container.get(paddle.getDescriptor().getHashCode())[LEFT].fill(adcL, tr[LEFT]);
+						this.container.get(paddle.getDescriptor().getHashCode())[RIGHT].fill(adcR, tr[RIGHT]);
 					}
 
 				} else {
@@ -126,8 +134,6 @@ public class TOFTimeWalk {
 	
 	public void fitTimeWalk(int sector, int layer, int paddle) {
 		
-		 
-		
 		if (paddle==9 && sector==1 && layer==1) {
 			H2D twL = getH2D(sector, layer, paddle)[LEFT];
 			
@@ -162,6 +168,13 @@ public class TOFTimeWalk {
 			TCanvas c2 = new TCanvas("Mean Graph","Mean Graph",1200,800);
 			c2.setDefaultCloseOperation(c2.HIDE_ON_CLOSE);
 			c2.draw(meanGraph);
+			
+			// fit function to the graph of means
+//			F1D trFunc = new F1D("[0]+([1]/Math.pow(x,[2]))");
+//			double[] initParams = {0.0,5.0,0.5};
+//			trFunc.setParameters(initParams);
+//			meanGraph.fit(trFunc);
+//			c2.draw(trFunc,"same");
 		}
 	}
 	

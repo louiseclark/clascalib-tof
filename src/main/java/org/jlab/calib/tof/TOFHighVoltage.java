@@ -474,7 +474,11 @@ public double newHVTest(int layer, double origVoltage, double gainIn, double cen
 			table.addEntry(sector, layer, paddle);
 			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0.0").format(f.getParameter(1))));
 			if (!Double.isInfinite(gmError)){
-				table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(gmError)));
+				try {
+					table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(gmError)));
+				} catch (NumberFormatException e){
+					table.getEntry(sector, layer, paddle).setData(1, 9999.0);
+				}
 			}
 			else {
 				table.getEntry(sector, layer, paddle).setData(1, 9999.0);

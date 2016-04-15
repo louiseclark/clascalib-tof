@@ -83,7 +83,7 @@ public class TOFPaddle {
     	int paddle = this.getDescriptor().getComponent() -1;
     	float x = this.XPOS;
     	return !(paddle<24 && x>62.8+13.787*paddle-5 && x<62.8+13.787*paddle+5)
-    			&& (this.ADCL > 0.1 && this.ADCR > 0.1)
+    			&& (this.ADCL- getPedestalL() > 0.1 && this.ADCR - getPedestalR() > 0.1)
     			&& (this.YPOS > -85 && this.YPOS < 85);
     	
     }
@@ -104,6 +104,23 @@ public class TOFPaddle {
     	return c0+c1*this.TDCR;
     }
     
+    public double getPedestalL() {
+    	// only needed for test data
+    	// real data will have pedestal subtracted
+    	// uses values from Haiyun's caldb test files
+    	// hardcoded for S1 P10 as that's the data I have
+    	return 442.0;
+    }
+
+    public double getPedestalR() {
+    	// only needed for test data
+    	// real data will have pedestal subtracted
+    	// uses values from Haiyun's caldb test files
+    	// hardcoded for S1 P10 as that's the data I have
+    	return 410.0;
+    }
+
+    
 	private double veffOffset() {
 		return 0.0; // get from calibration database, store locally to save going to database for every event
 	}
@@ -119,7 +136,7 @@ public class TOFPaddle {
 		double timeR = getTWTimeR();
 		
 		timeL = timeL - veffOffset();
-		timeR = timeL + veffOffset();
+		timeR = timeR + veffOffset();
 		
 		double timeLCorr = timeL + (lambda[LEFT]/Math.pow(ADCL, order[LEFT]));
 		double timeRCorr = timeR + (lambda[RIGHT]/Math.pow(ADCR, order[RIGHT]));

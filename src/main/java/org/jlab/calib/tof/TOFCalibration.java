@@ -68,7 +68,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
 	public final int LOGRATIO = 1;    
     
     public static final int[]		NUM_PADDLES = {23,62,5};
-    public static final String[]	LAYER_NAME = {"FTOF1A","FTOF1B","FTOF2B"};
+    public static final String[]	LAYER_NAME = {"FTOF1A","FTOF1B","FTOF2"};
     public static final int			ALLOWED_MIP_DIFF = 50;
     
     private static String inputFile;
@@ -153,6 +153,30 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
             view.addDetectorListener(this);
             this.calibPane.getDetectorView().addDetectorLayer(view);
     	}
+
+    	DetectorShapeView2D view = new DetectorShapeView2D("Summary");
+    	for(int layer = 1; layer <= 3; layer++){
+    		int layer_index = layer-1;
+    		for(int sector = 1; sector <= 6; sector++){
+    			int sector_index = sector -1;
+
+    			DetectorShape2D  shape = new DetectorShape2D();
+    			//shape.createTrapXY(30, 20, 80+layer_index*20);
+    			shape.getDescriptor().setType(DetectorType.FTOF1A);
+    			shape.getDescriptor().setSectorLayerComponent(sector, layer, 0);
+    			shape.createBarXY(18, 80 + layer_index*20);
+    			//shape.getShapePath().rotateZ(Math.toRadians((sector_index*60.0)+180.0));
+    			shape.getShapePath().translateXYZ(120+20*layer_index, 0, 0);
+    			shape.getShapePath().rotateZ(Math.toRadians((sector_index*60.0)+180.0));
+    			shape.setColor(180, 180, 255);
+    			
+    			view.addShape(shape);
+
+    		}
+    	}
+    	view.addDetectorListener(this);
+    	this.calibPane.getDetectorView().addDetectorLayer(view);
+
     }
     /**
      * This method comes from detector listener interface.
@@ -179,6 +203,8 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
 
     public void update(DetectorShape2D dsd) {
     	// check any constraints
+
+    	if (dsd.getDescriptor().getComponent()==0) return;
     	
     	double mipChannel = hv.getMipChannel(dsd.getDescriptor().getSector(), 
 				   dsd.getDescriptor().getLayer(), 
@@ -223,7 +249,7 @@ public class TOFCalibration implements IDetectorListener,IConstantsTableListener
         
         
         
-        int maxEvents = 0;
+        int maxEvents = 200000;
         int eventNum = 0;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();

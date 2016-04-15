@@ -276,7 +276,7 @@ public class TOFCalTimeWalk implements IDetectorListener,IConstantsTableListener
     	
     	// Select the input file
     	JFileChooser fc = new JFileChooser();
-    	fc.setDialogTitle("Choose input evio file for FTOF calibration");
+    	fc.setDialogTitle("Choose input evio file for FTOF TW calibration");
     	fc.setCurrentDirectory(new File("/home/louise/FTOF_calib_rewrite/input_files"));
         int returnValue = fc.showOpenDialog(null);
 		if (returnValue == JFileChooser.APPROVE_OPTION) {

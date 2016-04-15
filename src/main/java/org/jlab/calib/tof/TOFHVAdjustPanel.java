@@ -75,7 +75,7 @@ public class TOFHVAdjustPanel 	extends JPanel
 				
 				hvTable.fireTableDataChanged();
 				
-				TOFCalibration.testHVCalcs();
+				//TOFCalibration.testHVCalcs();
 			}
 		
 		}
