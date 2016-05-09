@@ -46,7 +46,7 @@ import org.root.func.F1D;
 import org.root.group.TBrowser;
 import org.root.histogram.GraphErrors;
 import org.root.histogram.H1D;
-import org.root.pad.EmbeddedCanvas;
+import org.root.basic.EmbeddedCanvas;
 import org.root.pad.TCanvas;
 
 /**
@@ -105,7 +105,7 @@ public class TOFCalTimeWalk implements IDetectorListener,IConstantsTableListener
         
         tw.init();
         
-        processFile(tw);
+        //processFile(tw);
         // Display sector 1 initially
         tw.drawComponent(2, 1, 1, canvas);
         
@@ -220,13 +220,14 @@ public class TOFCalTimeWalk implements IDetectorListener,IConstantsTableListener
         int eventNum = 0;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
-        	tw.processEvent(event);
+        	//tw.processEvent(event);
         	eventNum++;
         }
 
         tw.analyze();
 
     }
+    
     public void actionPerformed(ActionEvent e) {
         System.out.println("ACTION PERFORMED : " + e.getActionCommand());
         if(e.getActionCommand().compareTo("Fit")==0){

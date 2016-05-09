@@ -16,7 +16,7 @@ import org.jlab.clas.detector.*;
 import org.jlab.evio.clas12.*;
 import org.root.func.*;
 import org.root.histogram.*;
-import org.root.pad.*;
+import org.root.basic.EmbeddedPad;
 
 public class TestCalibration {
 
@@ -51,7 +51,7 @@ public class TestCalibration {
         gm.analyze();
         //gm.show();
 
-        final EmbeddedCanvas c1 = new EmbeddedCanvas(900,800,1,1);
+        final EmbeddedPad c1 = new EmbeddedPad(1,1);
         H1D h = gm.getH1D(5,1,50);
         F1D f = gm.getF1D(5,1,50);
 
@@ -66,7 +66,7 @@ public class TestCalibration {
         
         tablePanel.addListener(new IConstantsTableListener(){
             public void entrySelected(int sector, int layer, int component){
-            	c1.clear();
+            	//c1.clear();
             	H1D h = gm.getH1D(sector,layer,component);
                 F1D f = gm.getF1D(sector,layer,component);
                 

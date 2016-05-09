@@ -21,7 +21,7 @@ import org.root.base.IDataSet;
 import org.root.func.F1D;
 import org.root.func.RandomFunc;
 import org.root.histogram.H1D;
-import org.root.pad.EmbeddedCanvas;
+import org.root.basic.EmbeddedCanvas;
 
 /**
  *

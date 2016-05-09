@@ -67,6 +67,7 @@ import org.root.pad.*;
 import org.root.group.*;
 import org.root.histogram.*;
 import org.root.base.IDataSet;
+import org.root.basic.EmbeddedCanvas;
 import org.root.data.DataSetXY;
 import org.root.func.*;
 

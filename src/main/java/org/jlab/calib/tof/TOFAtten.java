@@ -13,7 +13,7 @@ import org.root.func.F1D;
 import org.root.histogram.GraphErrors;
 import org.root.histogram.H1D;
 import org.root.histogram.H2D;
-import org.root.pad.EmbeddedCanvas;
+import org.root.basic.EmbeddedCanvas;
 import org.root.pad.TBookCanvas;
 
 public class TOFAtten {
@@ -23,7 +23,7 @@ public class TOFAtten {
 	TreeMap<Integer,GraphErrors> graphs = new TreeMap<Integer,GraphErrors>();
 	
 	public void processEvent(EvioDataEvent event){
-		List<TOFPaddle> list = DataProvider.getPaddleList(event);        
+		List<TOFPaddle> list = DataProvider.getPaddleListDgtz(event);        
 		this.process(list);
 	}
 

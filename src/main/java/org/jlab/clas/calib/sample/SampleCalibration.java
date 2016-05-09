@@ -30,7 +30,7 @@ import org.jlab.clasrec.main.IDataEventProcessor;
 import org.jlab.data.io.DataEvent;
 import org.root.attr.TStyle;
 import org.root.histogram.H1D;
-import org.root.pad.EmbeddedCanvas;
+import org.root.basic.EmbeddedCanvas;
 import org.root.pad.TBookCanvas;
 
 /**

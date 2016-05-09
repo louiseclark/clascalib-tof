@@ -83,25 +83,10 @@ public class TOFPaddle {
     	int paddle = this.getDescriptor().getComponent() -1;
     	float x = this.XPOS;
     	return !(paddle<24 && x>62.8+13.787*paddle-5 && x<62.8+13.787*paddle+5)
-    			&& (this.ADCL- getPedestalL() > 0.1 && this.ADCR - getPedestalR() > 0.1)
+    			//&& (this.ADCL- getPedestalL() > 0.1 && this.ADCR - getPedestalR() > 0.1)
+    			&& (this.ADCL > 0.1 && this.ADCR > 0.1)
     			&& (this.YPOS > -85 && this.YPOS < 85);
     	
-    }
-    
-    public double getTWTimeL() {
-    	// uses values from Haiyun's caldb test files
-    	// hardcoded for S1 P10 as that's the data I have
-    	double c1=-0.0981149;
-    	double c0=433.845;
-    	return c0+c1*this.TDCL;
-    }
-    
-    public double getTWTimeR() {
-    	// uses values from Haiyun's caldb test files
-    	// hardcoded for S1 P10 as that's the data I have
-    	double c1=-0.0981185;
-    	double c0=437.063;
-    	return c0+c1*this.TDCR;
     }
     
     public double getPedestalL() {
@@ -127,7 +112,7 @@ public class TOFPaddle {
 	
 	private double veff() {
 		return 16.0; // get from calibration database, store locally to save going to database for every event
-	}    
+	}  
     
 	public double[] timeResiduals(double[] lambda, double[] order) {
 		double[] tr = {0.0, 0.0};
@@ -158,11 +143,34 @@ public class TOFPaddle {
     	return (tdcToTime(TDCL) != tdcToTime(TDCR));
     }
     
+    public double getTWTimeL() {
+    	// uses values from Haiyun's caldb test files
+    	// hardcoded for S1 P10 as that's the data I have
+    	double c1=-0.0981149;
+    	double c0=433.845;
+    	return c0+c1*this.TDCL;
+    }
+    
+    public double getTWTimeR() {
+    	// uses values from Haiyun's caldb test files
+    	// hardcoded for S1 P10 as that's the data I have
+    	double c1=-0.0981185;
+    	double c0=437.063;
+    	return c0+c1*this.TDCR;
+    }    
+    
     double tdcToTime(double value){
     	double c1=0.0009811; // average value from CLAS
     	double c0=0;
     	return c0+c1*value;
     }		
+    
+    double halfTimeDiff() {
+    	
+    	double timeL = getTWTimeL();
+    	double timeR = getTWTimeR();
+    	return (timeL-timeR)/2;
+    }
     
     public double position() {
 		double vEff = 16; // default effective velocity to 16cm/ns

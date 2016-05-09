@@ -26,7 +26,7 @@ import org.jlab.evio.clas12.EvioDataEvent;
 import org.jlab.evio.clas12.EvioSource;
 import org.root.func.F1D;
 import org.root.histogram.H1D;
-import org.root.pad.EmbeddedCanvas;
+import org.root.basic.EmbeddedCanvas;
 
 /**
  *

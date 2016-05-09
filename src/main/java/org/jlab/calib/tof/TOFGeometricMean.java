@@ -31,7 +31,7 @@ public class TOFGeometricMean {
 
 	
 	public void processEvent(EvioDataEvent event){
-		List<TOFPaddle> list = DataProvider.getPaddleList(event);        
+		List<TOFPaddle> list = DataProvider.getPaddleListDgtz(event);        
 		this.process(list);
 	}
 

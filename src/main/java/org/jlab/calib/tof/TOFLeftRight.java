@@ -19,7 +19,8 @@ import org.jlab.clas.detector.*;
 import org.jlab.evio.clas12.*;
 import org.root.func.*;
 import org.root.histogram.*;
-import org.root.pad.*;
+import org.root.pad.TBookCanvas;
+import org.root.basic.*;
 
 
 /**
@@ -36,7 +37,7 @@ public class TOFLeftRight {
 	final int ERROR = 1;
 	
 	public void processEvent(EvioDataEvent event){
-		List<TOFPaddle> list = DataProvider.getPaddleList(event);        
+		List<TOFPaddle> list = DataProvider.getPaddleListDgtz(event);        
 		this.process(list);
 	}
 

@@ -44,26 +44,18 @@ import org.root.basic.EmbeddedCanvas;
  *
  * @author louiseclark
  */
-public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,ActionListener {
+public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTableListener,ActionListener {
 
 	private EmbeddedCanvas   		canvas = new EmbeddedCanvas();
 	private CalibrationPane  		calibPane = new CalibrationPane();
 	private ConstantsTable   			constantsTable = null;
 	private ConstantsTablePanel			constantsTablePanel;
-	
-	private CalibrationConstants veffConstants = new CalibrationConstants();
-	
-	
-	TreeMap<Integer,H2D[]> container = new TreeMap<Integer,H2D[]>();
-	TreeMap<Integer,F1D[]> functions = new TreeMap<Integer,F1D[]>();
-	TreeMap<Integer,Double[]> constants = new TreeMap<Integer,Double[]>();
+		
+	TreeMap<Integer,H2D> container = new TreeMap<Integer,H2D>();
+	TreeMap<Integer,F1D> functions = new TreeMap<Integer,F1D>();
 	
 	// constants for indexing the histogram and constant arrays
-	public final int LEFT = 0;
-	public final int RIGHT = 1;
-
-	// the number of cycles of corrections
-	private final int			NUM_ITERATIONS = 5;
+	// ?? Do I need any?
 	
 	public CalibrationPane getView() {
 		return calibPane;
@@ -71,56 +63,34 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 	
 	public void process(List<TOFPaddle> paddleList){
 		
-		// paddle list is processed 5 times each time correcting the time using refined values for lambda and order
-		//double[] lambda = {0.0,0.0};
-		//double[] order = {2.0,2.0};
-		
-		double[] lambda = {1.0,1.0};
-		double[] order = {0.5,0.5};
-		
-		//double[] lambda = {-21435.6,21435.6};
-		//double[] order = {2.0,2.0};
-		
-		//for (int i=0; i < NUM_ITERATIONS; i++) {
-			
-			for(TOFPaddle paddle : paddleList){
-				if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
-					
-					// fill timeResidual vs ADC
-					double [] tr = paddle.timeResiduals(lambda, order);
-					
-					if (paddle.includeInTimeWalk()) {
-						double adcL = paddle.ADCL; // - paddle.getPedestalL();
-						double adcR = paddle.ADCR; // - paddle.getPedestalR();
-						this.container.get(paddle.getDescriptor().getHashCode())[LEFT].fill(adcL, tr[LEFT]);
-						this.container.get(paddle.getDescriptor().getHashCode())[RIGHT].fill(adcR, tr[RIGHT]);
-					}
 
-				} else {
-					System.out.println("Cant find : " + paddle.getDescriptor().toString() );
+		for(TOFPaddle paddle : paddleList){
+			if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
+
+				// fill (Time Left - Time Right / 2) vs position
+				if (paddle.includeInTimeWalk()) {
+					this.container.get(paddle.getDescriptor().getHashCode()).fill(paddle.YPOS, paddle.halfTimeDiff());
 				}
+
+			} else {
+				System.out.println("Cant find : " + paddle.getDescriptor().toString() );
 			}
-		//}
+		}
 		
 	}
 	
 	public void init(){
-		
-		// Get effective velocity values from calDB
-		veffConstants.define("eff", "/calibration/ftof/effective_velocity");
-		int runID = 10;
-		veffConstants.init(runID, "default");
-		
+				
         this.calibPane.getCanvasPane().add(canvas);
         this.constantsTable = new ConstantsTable(DetectorType.FTOF,
-                new String[]{"Lambda left","Order left", "Lambda right", "Order right"});
+                new String[]{"veff","veff_err"});
 
         this.constantsTablePanel = new ConstantsTablePanel(this.constantsTable);
         
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        JButton buttonFit = new JButton("Fit");
+        JButton buttonFit = new JButton("Fit2");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");
@@ -141,24 +111,31 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 
 					desc.setSectorLayerComponent(sector, layer, paddle);
 									
-					H2D[] hists = {
-					new H2D("Time residual vs ADC LEFT Sector "+desc.getSector()+
+					H2D hist = 
+					new H2D("Time Diff/2 vs Position - Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
-							"Time residual vs ADC LEFT Sector "+desc.getSector()+
+							"Time Diff/2 vs Position - Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
-							100, 0.0, 2000.0,
-							100, -10.0, 10.0),
-					new H2D("Time residual vs ADC RIGHT Sector "+desc.getSector()+
-							" Paddle "+desc.getComponent(),
-							"Time residual vs ADC RIGHT Sector "+desc.getSector()+
-							" Paddle "+desc.getComponent(),
-							100, 0.0, 2000.0,
-							100, -10.0, 10.0)};
-					container.put(desc.getHashCode(), hists);
+							100, lowY(paddle), highY(paddle), 
+							200, -10.0, 10.0);
+					container.put(desc.getHashCode(), hist);
 				}
 			}
 		}
 	}
+	
+	private double halfLength(int paddle) {
+		return 85.0;
+		// *** hard coded for paddle 10 at the moment - read from geometry???
+	}
+	
+	public double lowY(int paddle) {
+		return -halfLength(paddle);
+	}
+	
+	public double highY(int paddle) {
+		return halfLength(paddle);
+	}	
 
 	public void initDisplay(){
 		
@@ -203,18 +180,20 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
     }
     
     public void actionPerformed(ActionEvent e) {
-        System.out.println("ACTION PERFORMED : " + e.getActionCommand());
-        if(e.getActionCommand().compareTo("Fit")==0){
+
+    	if(e.getActionCommand().compareTo("Fit")==0){
         	
         	int sector = constantsTablePanel.getSelected().getSector();
         	int layer = constantsTablePanel.getSelected().getLayer();
         	int paddle = constantsTablePanel.getSelected().getComponent();
 	    	
         	customFit(sector, layer, paddle);
-	    	F1D f = getF1D(sector, layer, paddle)[0];
+	    	F1D f = getF1D(sector, layer, paddle);
 	    	
-	    	constantsTable.getEntry(sector, layer, paddle).setData(0, Math.round(f.getParameter(1)));
-	    	constantsTable.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(f.parameter(1).error())));
+	    	constantsTable.getEntry(sector, layer, paddle).setData(0, 
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getVeff(sector, layer, paddle))));
+	    	constantsTable.getEntry(sector, layer, paddle).setData(1, 
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getVeffError(sector, layer, paddle))));
 			//constantsTable.fireTableDataChanged();
 			
 			drawComponent(sector, layer, paddle, canvas);
@@ -232,8 +211,8 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
         	viewAllFrame.setVisible(true);
         	viewAllFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
         	
-        	viewFits(sector, layer, 0);
-        	viewFits(sector, layer, 1);
+        	viewFits(sector, layer);
+        	viewFits(sector, layer);
         	
         }
         else if (e.getActionCommand().compareTo("Write to file")==0) {
@@ -263,72 +242,70 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
     
     public void analyze(){
 		for(int sector = 1; sector <= 6; sector++){
-		//for(int sector = 2; sector <= 2; sector++){
 			for (int layer = 1; layer <= 3; layer++) {
-			//for (int layer = 1; layer <= 2; layer++) {
 				int layer_index = layer-1;
 				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
-					fitTimeWalk(sector, layer, paddle);
+					fitEffectiveVelocity(sector, layer, paddle);
 				}
 			}
 		}
 	}
 	
-	public void fitTimeWalk(int sector, int layer, int paddle) {
+	public void fitEffectiveVelocity(int sector, int layer, int paddle) {
 		
-		if (paddle==9 && sector==1 && layer==1) {
-			H2D twL = getH2D(sector, layer, paddle)[LEFT];
-			
-			ArrayList<H1D> twLSlices = twL.getSlicesX();
-			int numBins = twL.getXAxis().getNBins();
-			
-			double[] binSlices = new double[numBins];
-			double[] means = new double[numBins];
-			
-			for (int i=0; i<numBins; i++) {
-				
-				H1D h = twLSlices.get(i);
-				F1D f = new F1D("gaus",-2.0,2.0);
-				f.setParameter(0, 250.0);
-				f.setParameter(1, 0.0);
-				f.setParameter(2, 2.0);
-				h.fit(f, "RN");
-				
-				binSlices[i] = twL.getXAxis().getBinCenter(i);
-				means[i] = f.getParameter(1);
-			
-				if (i==50) {
-					TCanvas c1 = new TCanvas("Test slices","Test slices",1200,800,1,1);
-					c1.setDefaultCloseOperation(c1.HIDE_ON_CLOSE);
-					c1.cd(0);
-					c1.draw(h);
-					c1.draw(f,"same");
-				}
+		H2D veffHist = getH2D(sector, layer, paddle);
+
+		// fit function to the graph of means
+		GraphErrors meanGraph = veffHist.getProfileX();
+
+		// find the range for the fit
+		// TO DO
 		
-			}
-			GraphErrors meanGraph = new GraphErrors("Mean Graph", binSlices, means);
+		int graphMaxIndex = meanGraph.getDataSize(0)-1;
+		int graphMinIndex = 0;
+		int highIndex=80;
+		int lowIndex=20;
+		int centreIndex = meanGraph.getDataSize(0)/2;
+
+		for (int pos=centreIndex; pos < graphMaxIndex; pos++) {
+			
+		    if(meanGraph.getDataY(pos) < meanGraph.getDataY(pos-1)){
+			      highIndex = pos-2;
+			      break;
+		    }
+		}
+		
+		for (int pos=centreIndex; pos>=1; pos--) {
+		    if(meanGraph.getDataY(pos) > meanGraph.getDataY(pos+1)){
+			      lowIndex = pos+2;
+			      break;
+		    }
+		}
+		
+		double lowLimit = meanGraph.getDataX(lowIndex);
+		double highLimit = meanGraph.getDataX(highIndex);
+		
+		F1D veffFunc = new F1D("p1", lowLimit, highLimit);
+		meanGraph.fit(veffFunc,"RN");
+
+		// Store the fitted function
+		DetectorDescriptor desc = new DetectorDescriptor();
+		desc.setSectorLayerComponent(sector, layer, paddle);
+		functions.put(desc.getHashCode(), veffFunc);
+		
+		// TEST CODE
+		if (paddle==9 && sector==1) {
 			TCanvas c2 = new TCanvas("Mean Graph","Mean Graph",1200,800);
 			c2.setDefaultCloseOperation(c2.HIDE_ON_CLOSE);
 			c2.draw(meanGraph);
-			
-			// fit function to the graph of means
-//			F1D trFunc = new F1D("[0]+([1]/Math.pow(x,[2]))");
-//			double[] initParams = {0.0,5.0,0.5};
-//			trFunc.setParameters(initParams);
-//			meanGraph.fit(trFunc);
-//			c2.draw(trFunc,"same");
+			c2.draw(veffFunc, "same");
 		}
+				
 	}
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
 		
-		// test calDB read
-		double veff = veffConstants.getEntryDouble("eff", "veff_left", sector, layer, paddle);
-		
-		System.out.println("Veff is " + veff);
-		
-		
-		int numHists = this.getH2D(sector, layer, paddle).length;
+		int numHists = 1; //this.getH2D(sector, layer, paddle).length;
 		canvas.divide(numHists, 1);
 		
 		for (int i=0; i<numHists; i++) {			
@@ -338,12 +315,10 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 			Font font = new Font("Verdana", Font.PLAIN, 7);		
 			canvas.getPad().setFont(font);
 			
-			H2D hist = getH2D(sector, layer, paddle)[i];
-			System.out.println(hist.getName());
-			//hist.setLineColor(1);
+			H2D hist = getH2D(sector, layer, paddle);
 			
 			canvas.draw(hist,"");
-			//canvas.draw(this.getF1D(sector, layer, paddle)[i],"same");
+			canvas.draw(this.getF1D(sector, layer, paddle),"same");
 		}
 		
 	}
@@ -351,8 +326,8 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		H2D h = getH2D(sector, layer, paddle)[LEFT];
-		F1D f = getF1D(sector, layer, paddle)[LEFT];        
+		H2D h = getH2D(sector, layer, paddle);
+		F1D f = getF1D(sector, layer, paddle);        
 		
 		TOFCustomFitPanel panel = new TOFCustomFitPanel();
 
@@ -368,55 +343,57 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		}	 
 	}
 	
-	public H2D[] getH2D(int sector, int layer, int paddle){
+	public H2D getH2D(int sector, int layer, int paddle){
 		return this.container.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}
-	public F1D[] getF1D(int sector, int layer, int paddle){
+	
+	public F1D getF1D(int sector, int layer, int paddle){
 		return this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}
-	public Double[] getConst(int sector, int layer, int paddle){
-		return this.constants.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
-	}	
-		
-	public double getCalibrationValue(int sector, int layer, int paddle, int funcNum, int param) {
-		
-		double calibVal;
-		DetectorDescriptor desc = new DetectorDescriptor();
-		desc.setSectorLayerComponent(sector, layer, paddle);
-		F1D func;
-		try {
-			func = functions.get(desc.getHashCode())[funcNum];
-			calibVal = func.getParameter(param);
-		} catch (NullPointerException e) {
-			calibVal = 0.0;
+
+	public Double getVeff(int sector, int layer, int paddle) {
+		double gradient = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParameter(1);
+		double veff = 0.0;
+		if (gradient==0.0) {
+			veff=0.0;
 		}
-		return calibVal;
+		else {
+			veff = 1/gradient;
+		}
+		return veff;
 	}
 	
-	public void fillTable(int sector, int layer, final ConstantsTable table) {
+	public Double getVeffError(int sector, int layer, int paddle){
 		
+		// Calculate the error
+		// fractional error in veff = fractional error in 1/veff
+		double gradient = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParameter(1);
+		double gradientError = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParError(1);
+		double veff = getVeff(sector, layer, paddle);
+		
+		double veffError = 0.0;
+		if (gradient==0.0) {
+			veffError = 0.0;
+		}
+		else {
+			veffError = (gradientError/gradient) * veff;
+		}
+		
+		return veffError;
+	}	
+		
+	public void fillTable(int sector, int layer, final ConstantsTable table) {
 		
 		int layer_index = layer-1;
 		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++) {
 			
-			//F1D f = getF1D(sector, layer, paddle)[LEFT];
-//			Double lrCentroid = getConst(sector, layer, paddle)[LR_CENTROID];
 			table.addEntry(sector, layer, paddle);
-//			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0.0").format(f.getParameter(1))));
-//			if (Double.isFinite(gmError)){
-//				table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(gmError)));
-//			}
-//			else {
-//				table.getEntry(sector, layer, paddle).setData(1, 9999.0);
-//			}
-//			table.getEntry(sector, layer, paddle).setData(2, Double.parseDouble(new DecimalFormat("0.000").format(lrCentroid)));
-//			if (Double.isFinite(lrError)) {
-//				table.getEntry(sector, layer, paddle).setData(3, Double.parseDouble(new DecimalFormat("0.000").format(lrError)));
-//			}
-//			else {
-//				table.getEntry(sector, layer, paddle).setData(3, 9999.0);
-//			}
-
+			
+	    	table.getEntry(sector, layer, paddle).setData(0, 
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getVeff(sector, layer, paddle))));
+	    	table.getEntry(sector, layer, paddle).setData(1, 
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getVeffError(sector, layer, paddle))));
+			
 		}
 	}
 	
@@ -456,7 +433,7 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		Date today = new Date();
 		DateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
 		String todayString = dateFormat.format(today);
-		String filePrefix = "FTOF_CALIB_TW_"+todayString;
+		String filePrefix = "FTOF_CALIB_VEFF_"+todayString;
 		int newFileNum = 0;
 
 		File dir = new File(".");
@@ -483,14 +460,14 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		TBookCanvas		book = new TBookCanvas(2,2);
 		
 		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
-			book.add(getH2D(sector, layer, paddle)[LEFT], "");
-			//book.add(getF1D(sector, layer, paddle)[GEOMEAN], "same");
+			book.add(getH2D(sector, layer, paddle), "");
+			book.add(getF1D(sector, layer, paddle), "same");
 			
 		}
 		return book;
 	}
 	
-	public void viewFits(int sector, int layer, int plotType) {
+	public void viewFits(int sector, int layer) {
 		
 		// Open up canvases to show all the fits
 		String[] PANEL_NAME = {"FTOF 1A", "FTOF 1B", "FTOF 2"};
@@ -507,14 +484,14 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		
 		for (int paddleNum=1; paddleNum <= TOFCalibration.NUM_PADDLES[layer_index]; paddleNum++) {
 			
-			H2D fitHist = getH2D(sector, layer, paddleNum)[plotType];
+			H2D fitHist = getH2D(sector, layer, paddleNum);
 						
 			fitCanvases[canvasNum].cd(padNum);
 			//fitHist.setLineColor(2);
 			fitHist.setTitle("Paddle "+paddleNum);
 			fitCanvases[canvasNum].draw(fitHist);
 			
-			F1D fitFunc = getF1D(sector, layer, paddleNum)[plotType];
+			F1D fitFunc = getF1D(sector, layer, paddleNum);
 			fitCanvases[canvasNum].draw(fitFunc, "same");
 			
     		padNum = padNum+1;

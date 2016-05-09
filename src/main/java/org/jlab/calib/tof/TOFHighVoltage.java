@@ -6,6 +6,8 @@
 package org.jlab.calib.tof;
 
 import java.awt.Font;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -18,22 +20,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import javax.swing.JButton;
+import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import javax.swing.JPanel;
 
 import org.jlab.clas.detector.*;
+import org.jlab.clas12.calib.CalibrationPane;
+import org.jlab.clas12.calib.DetectorShape2D;
+import org.jlab.clas12.calib.IDetectorListener;
 import org.jlab.clas12.detector.EventDecoder;
+import org.jlab.containers.HashTable;
 import org.jlab.evio.clas12.*;
 import org.root.func.*;
 import org.root.histogram.*;
-import org.root.pad.*;
+import org.root.pad.TCanvas;
+import org.root.pad.TBookCanvas;
+import org.root.basic.EmbeddedCanvas;
 
+public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListener,ActionListener {
 
-/**
- *
- * @author gavalian
- */
-public class TOFHighVoltage {
-
+	private EmbeddedCanvas   		canvas = new EmbeddedCanvas();
+	private CalibrationPane  		calibPane = new CalibrationPane();
+	private ConstantsTable   			constantsTable = null;
+	private ConstantsTablePanel			constantsTablePanel;
+	
+	
 	TreeMap<Integer,TOFH1D[]> container = new TreeMap<Integer,TOFH1D[]>();
 	TreeMap<Integer,F1D[]> functions = new TreeMap<Integer,F1D[]>();
 	TreeMap<Integer,Double[]> constants = new TreeMap<Integer,Double[]>();
@@ -54,21 +66,16 @@ public class TOFHighVoltage {
 	private final int			GM_REBIN_THRESHOLD = 50000;
 
     public final int[]		EXPECTED_MIP_CHANNEL = {800, 2000, 800};
+    public final int		ALLOWED_MIP_DIFF = 50;
     public final double[]	ALPHA = {13.4, 4.7, 8.6};
 	
-		
-	public void processEvent(EvioDataEvent event, EventDecoder decoder){
-		
-		//List<TOFPaddle> list = DataProvider.getPaddleList(event);
-		List<TOFPaddle> list = DataProviderRaw.getPaddleList(event, decoder);
-		this.process(list);
+	public CalibrationPane getView() {
+		return calibPane;
 	}
-
+    
 	public void process(List<TOFPaddle> paddleList){
 		for(TOFPaddle paddle : paddleList){
 			if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
-				
-				//System.out.println(paddle.toString());
 				
 				// fill Geometric Mean
 				this.container.get(paddle.getDescriptor().getHashCode())[GEOMEAN].fill(paddle.geometricMean());
@@ -86,6 +93,34 @@ public class TOFHighVoltage {
 	}
 	
 	public void init(){
+		
+        this.calibPane.getCanvasPane().add(canvas);
+        
+        this.constantsTable = new ConstantsTable(DetectorType.FTOF,
+                new String[]{"Geometric Mean Peak","Uncertainty", "Log Ratio Centroid", "Uncertainty"});
+
+        this.constantsTablePanel = new ConstantsTablePanel(this.constantsTable);
+        
+        this.constantsTablePanel.addListener(this);        
+        this.calibPane.getTablePane().add(this.constantsTablePanel);
+        
+        JButton buttonFit = new JButton("Fit");
+        buttonFit.addActionListener(this);
+        
+        JButton buttonViewAll = new JButton("View all");
+        buttonViewAll.addActionListener(this);
+        
+        JButton buttonAdjust = new JButton("Adjust HV");
+        buttonAdjust.addActionListener(this);
+        
+        JButton buttonWrite = new JButton("Write to file");
+        buttonWrite.addActionListener(this);
+        
+        this.calibPane.getBottonPane().add(buttonFit);
+        this.calibPane.getBottonPane().add(buttonViewAll);
+        this.calibPane.getBottonPane().add(buttonAdjust);
+        this.calibPane.getBottonPane().add(buttonWrite);
+        
 		DetectorDescriptor desc = new DetectorDescriptor();
 		for(int sector = 1; sector <= 6; sector++){
 			for (int layer = 1; layer <= 3; layer++) {
@@ -102,6 +137,101 @@ public class TOFHighVoltage {
 			}
 		}
 	}
+		
+	public void initDisplay(){
+		
+        // Display sector 1 initially
+        drawComponent(2, 1, 1, canvas);
+        
+        // Until I can delete rows from the table will just add all sectors
+        for (int sector=1; sector<=6; sector++) {
+        	for (int layer=1; layer<=3; layer++) {
+        		fillTable(sector, layer, constantsTable);
+        	}
+        }
+	}
+	
+    public void update(DetectorShape2D dsd) {
+    	// check any constraints
+
+    	if (dsd.getDescriptor().getComponent()==0) return;
+    	
+    	double mipChannel = getMipChannel(dsd.getDescriptor().getSector(), 
+				   dsd.getDescriptor().getLayer(), 
+				   dsd.getDescriptor().getComponent());
+    	int layer_index = dsd.getDescriptor().getLayer()-1;
+    	double expectedMipChannel = EXPECTED_MIP_CHANNEL[layer_index];
+    	
+        if (mipChannel < expectedMipChannel - ALLOWED_MIP_DIFF ||
+        	mipChannel > expectedMipChannel + ALLOWED_MIP_DIFF) {
+        	
+        	dsd.setColor(255, 153, 51); // amber
+        	
+        }
+        else if (dsd.getDescriptor().getComponent()%2==0) {
+            dsd.setColor(180, 255,180);
+        } else {
+            dsd.setColor(180, 180, 255);
+        }
+    	
+    }
+    
+    public void entrySelected(int sector, int layer, int paddle) {
+
+    	drawComponent(sector, layer, paddle, canvas);
+        
+    }
+
+    public void actionPerformed(ActionEvent e) {
+        
+    	if(e.getActionCommand().compareTo("Fit")==0){
+        	
+        	int sector = constantsTablePanel.getSelected().getSector();
+        	int layer = constantsTablePanel.getSelected().getLayer();
+        	int paddle = constantsTablePanel.getSelected().getComponent();
+	    	
+        	customFit(sector, layer, paddle);
+	    	F1D f = getF1D(sector, layer, paddle)[GEOMEAN];
+	    	
+	    	constantsTable.getEntry(sector, layer, paddle).setData(0, Math.round(f.getParameter(1)));
+	    	constantsTable.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(f.parameter(1).error())));
+			//constantsTable.fireTableDataChanged();
+			
+			drawComponent(sector, layer, paddle, canvas);
+			calibPane.repaint();
+			
+        }
+        else if (e.getActionCommand().compareTo("View all")==0){
+
+        	int sector = constantsTablePanel.getSelected().getSector();
+        	int layer = constantsTablePanel.getSelected().getLayer();
+
+        	JFrame viewAllFrame = new JFrame();
+        	viewAllFrame.add(showFits(sector, layer));
+        	viewAllFrame.pack();
+        	viewAllFrame.setVisible(true);
+        	viewAllFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        	
+        	viewFits(sector, layer, GEOMEAN);
+        	viewFits(sector, layer, LOGRATIO);
+        	
+        }
+        else if(e.getActionCommand().compareTo("Adjust HV")==0){
+        	
+        	JFrame hvFrame = new JFrame("Adjust HV");
+        	hvFrame.add(new TOFHVAdjustPanel(this));
+        	hvFrame.pack();
+        	hvFrame.setVisible(true);
+        	hvFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        	
+        }
+        else if (e.getActionCommand().compareTo("Write to file")==0) {
+        	
+        	String outputFileName = writeTable(constantsTable);
+			JOptionPane.showMessageDialog(new JPanel(),"Calibration values written to "+outputFileName);
+        }
+    }
+
 
 	public void analyze(){
 		for(int sector = 1; sector <= 6; sector++){
@@ -117,6 +247,28 @@ public class TOFHighVoltage {
 		}
 
 	}
+	
+    /**
+     * This method comes from detector listener interface.
+     * @param dd 
+     */
+    public void detectorSelected(DetectorDescriptor dd) {
+        
+        int sector = dd.getSector();
+        int layer =  dd.getLayer();
+        int paddle = dd.getComponent();
+
+        drawComponent(sector, layer, paddle, canvas);
+        
+        // If the sector or layer has changed then redraw the table
+//        if (sector != Integer.parseInt((String)constantsTable.getValueAt(0, 1)) ||
+//        	layer != Integer.parseInt((String)constantsTable.getValueAt(0, 2))) {
+//        	System.out.println("Refilling table with sector " + sector + " layer " + layer );
+//        	hv.fillTable(sector, layer, constantsTable);
+//        	constantsTable.fireTableDataChanged();
+//        }
+        
+    }
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
 		
@@ -187,9 +339,9 @@ public class TOFHighVoltage {
 		}
 
 		// find the maximum bin after the start channel for the fit
-		System.out.println("Paddle " + paddle);
-		System.out.println("Start channel " + startChannelForFit);
-		System.out.println("End channel " + endChannelForFit);
+		//System.out.println("Paddle " + paddle);
+		//System.out.println("Start channel " + startChannelForFit);
+		//System.out.println("End channel " + endChannelForFit);
 		int startBinForFit = h.getxAxis().getBin(startChannelForFit);
 		int endBinForFit = h.getxAxis().getBin(endChannelForFit);
 
@@ -205,23 +357,28 @@ public class TOFHighVoltage {
 		double maxPos = h.getAxis().getBinCenter(maxBin);
 		F1D gmFunc = new F1D("landau+exp",startChannelForFit, endChannelForFit);
 		
-		System.out.println("maxCounts "+maxCounts);
-		System.out.println("maxPos "+maxPos);
+		//System.out.println("maxCounts "+maxCounts);
+		//System.out.println("maxPos "+maxPos);
 		
-		double[] params = {maxCounts, maxPos, 200.0, 600.0, -0.001};
+		//double[] params = {maxCounts, maxPos, 200.0, 600.0, -0.001};
 		
-		gmFunc.setParameters(params);
-//		gmFunc.setParameter(0, maxCounts);
-//		gmFunc.setParameter(1, maxPos);
-//		//gmFunc.setParameter(2, 100.0);
-//		gmFunc.setParameter(2, 200.0);
-////		gmFunc.setParLimits(2, 0.0,400.0);
-//		//gmFunc.setParameter(3, 20.0);
-//		gmFunc.setParameter(3, 600.0);
-//		//gmFunc.setParameter(4, 0.0);
-//		gmFunc.setParameter(4, -0.001);
-		h.fit(gmFunc, "RN");	
+		//gmFunc.setParameters(params);
+		gmFunc.setParameter(0, maxCounts);
+		gmFunc.setParameter(1, maxPos);
+//		gmFunc.setParameter(2, 100.0);
+		gmFunc.setParameter(2, 200.0);
+		gmFunc.setParLimits(2, 0.0,400.0);
+//		gmFunc.setParameter(3, 20.0);
+		gmFunc.setParameter(3, 600.0);
+//		gmFunc.setParameter(4, 0.0);
+		gmFunc.setParameter(4, -0.001);
 		
+		try {	
+			h.fit(gmFunc, "RNQ");	
+		} catch (Exception e) {
+			System.out.println("Fit error with sector "+sector+" layer "+layer+" paddle "+paddle);
+			e.printStackTrace();
+		}
 		
 		DetectorDescriptor desc = new DetectorDescriptor();
 		desc.setSectorLayerComponent(sector, layer, paddle);
@@ -613,5 +770,5 @@ public double newHVTest(int layer, double origVoltage, double gainIn, double cen
 			System.out.println(item.getKey() + "  -->  " + item.getValue()[GEOMEAN].getMean());
 		}
 	}
-
+	
 }

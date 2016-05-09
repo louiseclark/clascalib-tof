@@ -18,7 +18,7 @@ import org.jlab.clas12.calib.DetectorShapeView2D;
 import org.jlab.clas12.calib.IDetectorListener;
 import org.jlab.evio.clas12.EvioDataEvent;
 import org.jlab.evio.clas12.EvioSource;
-import org.root.pad.EmbeddedCanvas;
+import org.root.basic.EmbeddedCanvas;
 
 public class TOFCalAtten implements IDetectorListener,IConstantsTableListener,ActionListener {
     
