@@ -28,6 +28,7 @@ public class TOFCalibration {
     private static TOFHighVoltage 			hv = new TOFHighVoltage();
     private static TOFTimeWalk 				tw = new TOFTimeWalk();
     private static TOFEffectiveVelocity		veff = new TOFEffectiveVelocity();
+    private static TOFAtten					atten = new TOFAtten();
         
     public final static int[]		NUM_PADDLES = {23,62,5};
     public final String[]	LAYER_NAME = {"FTOF1A","FTOF1B","FTOF2"};
@@ -39,12 +40,14 @@ public class TOFCalibration {
         
     public void init(String inputFile){
         
+        atten.init();
         hv.init();
         tw.init();
         veff.init();
         
         processFile(inputFile);
-        
+
+        atten.initDisplay();
         hv.initDisplay();
         tw.initDisplay();
         veff.initDisplay();
@@ -54,10 +57,14 @@ public class TOFCalibration {
     public void initDetector(){
         
     	for (int layer = 1; layer <= 3; layer++) {
+    		
     		int layer_index = layer-1;
+    		
+    		DetectorShapeView2D viewAtten = new DetectorShapeView2D(LAYER_NAME[layer_index]);
     		DetectorShapeView2D viewHv = new DetectorShapeView2D(LAYER_NAME[layer_index]);
     		DetectorShapeView2D viewTw = new DetectorShapeView2D(LAYER_NAME[layer_index]);
     		DetectorShapeView2D viewVeff = new DetectorShapeView2D(LAYER_NAME[layer_index]);
+    		
     		for(int sector = 1; sector <= 6; sector++){
     			int sector_index = sector -1;
         		for(int paddle = 1; paddle <= NUM_PADDLES[layer_index]; paddle++){
@@ -74,6 +81,7 @@ public class TOFCalibration {
                     } else {
                         shape.setColor(180, 180, 255);
                     }
+                    viewAtten.addShape(shape);
                     viewHv.addShape(shape);
                     viewTw.addShape(shape);
                     viewVeff.addShape(shape);
@@ -81,6 +89,8 @@ public class TOFCalibration {
         		}
     		}
     		
+            viewAtten.addDetectorListener(atten);
+            atten.getView().getDetectorView().addDetectorLayer(viewAtten);
             viewHv.addDetectorListener(hv);
             hv.getView().getDetectorView().addDetectorLayer(viewHv);
             viewTw.addDetectorListener(tw);
@@ -89,9 +99,11 @@ public class TOFCalibration {
             veff.getView().getDetectorView().addDetectorLayer(viewVeff);
     	}
 
+    	DetectorShapeView2D viewAtten = new DetectorShapeView2D("Summary");
     	DetectorShapeView2D viewHv = new DetectorShapeView2D("Summary");
     	DetectorShapeView2D viewTw = new DetectorShapeView2D("Summary");
     	DetectorShapeView2D viewVeff = new DetectorShapeView2D("Summary");
+    	
     	for(int layer = 1; layer <= 3; layer++){
     		int layer_index = layer-1;
     		for(int sector = 1; sector <= 6; sector++){
@@ -107,12 +119,15 @@ public class TOFCalibration {
     			shape.getShapePath().rotateZ(Math.toRadians((sector_index*60.0)+180.0));
     			shape.setColor(180, 180, 255);
     			
+    			viewAtten.addShape(shape);
     			viewHv.addShape(shape);
     			viewTw.addShape(shape);
     			viewVeff.addShape(shape);
 
     		}
     	}
+        viewAtten.addDetectorListener(atten);
+        atten.getView().getDetectorView().addDetectorLayer(viewAtten);
         viewHv.addDetectorListener(hv);
         hv.getView().getDetectorView().addDetectorLayer(viewHv);
         viewTw.addDetectorListener(tw);
@@ -146,6 +161,7 @@ public class TOFCalibration {
         	eventNum++;
         }
 
+        atten.analyze();
         hv.analyze();
         tw.analyze();
         veff.analyze();
@@ -156,6 +172,7 @@ public class TOFCalibration {
 		
 		List<TOFPaddle> list = DataProvider.getPaddleList(event, decoder);
 		
+		atten.process(list);
 		hv.process(list);
 		tw.process(list);
 		veff.process(list);
@@ -188,6 +205,7 @@ public class TOFCalibration {
  		tabbedPane.addTab( "High Voltage", hv.getView());
  		tabbedPane.addTab( "Timewalk", tw.getView());
  		tabbedPane.addTab( "Effective Velocity", veff.getView());
+ 		tabbedPane.addTab( "Attenuation Length", atten.getView());
  		
         frame.add(tabbedPane);
         frame.pack();

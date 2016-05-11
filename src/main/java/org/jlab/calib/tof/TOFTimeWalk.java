@@ -120,7 +120,7 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        JButton buttonFit = new JButton("Fit");
+        JButton buttonFit = new JButton("Fit TW");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");

@@ -80,6 +80,8 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 	}
 	
 	public void init(){
+		
+		JOptionPane.showMessageDialog(new JPanel(),"TOFEffectiveVelocity init");
 				
         this.calibPane.getCanvasPane().add(canvas);
         this.constantsTable = new ConstantsTable(DetectorType.FTOF,
@@ -90,7 +92,7 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        JButton buttonFit = new JButton("Fit2");
+        JButton buttonFit = new JButton("Fit Veff");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");

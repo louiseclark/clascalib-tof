@@ -104,7 +104,7 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
         
-        JButton buttonFit = new JButton("Fit");
+        JButton buttonFit = new JButton("Fit HV");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");
@@ -453,17 +453,17 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 			logRatioError=0.0;
 		}
 		
-		if (sector==2&&paddle<6) {
-			System.out.println("Paddle "+paddle);
-			System.out.println("sum = "+sum);
-			System.out.println("sumWeight = "+sumWeight);
-			System.out.println("sumSquare = "+sumSquare);
-			System.out.println("logRatioMean = "+logRatioMean);
-			System.out.println("sumSquare/sum = "+(sumSquare/sum));
-			System.out.println("mean^2 = "+(logRatioMean*logRatioMean));
-			System.out.println("error = "+logRatioError);
-			
-		}
+//		if (sector==2&&paddle<6) {
+//			System.out.println("Paddle "+paddle);
+//			System.out.println("sum = "+sum);
+//			System.out.println("sumWeight = "+sumWeight);
+//			System.out.println("sumSquare = "+sumSquare);
+//			System.out.println("logRatioMean = "+logRatioMean);
+//			System.out.println("sumSquare/sum = "+(sumSquare/sum));
+//			System.out.println("mean^2 = "+(logRatioMean*logRatioMean));
+//			System.out.println("error = "+logRatioError);
+//			
+//		}
 		
 		// store the function showing the width over which mean is calculated
 		F1D lrFunc = new F1D("p1",h.getAxis().getBinCenter(lowThresholdBin), 

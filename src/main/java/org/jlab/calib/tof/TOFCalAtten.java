@@ -5,6 +5,7 @@ import java.awt.event.ActionListener;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
 import org.jlab.clas.detector.ConstantsTable;
@@ -142,7 +143,7 @@ public class TOFCalAtten implements IDetectorListener,IConstantsTableListener,Ac
     }
     
     public static void processFile(TOFAtten atten) {
-        String file = "/home/louise/coatjava/FtofInputFile_panel1a1bS6_from_root_file1.evio";
+        String file = "/home/louise/FTOF_calib_rewrite/input_files/FtofInputFile_panel1a1bS6_from_root_file1.evio";
         EvioSource reader = new EvioSource();
         reader.open(file);
         System.out.println(reader.getSize());
@@ -151,7 +152,7 @@ public class TOFCalAtten implements IDetectorListener,IConstantsTableListener,Ac
         int eventNum = 0;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
-        	atten.processEvent(event);
+        	//atten.processEvent(event);
         	eventNum++;
         }
 
@@ -188,6 +189,13 @@ public class TOFCalAtten implements IDetectorListener,IConstantsTableListener,Ac
         	viewAllFrame.pack();
         	viewAllFrame.setVisible(true);
         	viewAllFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        	
+        	//viewFits(sector, layer);
+        }
+        else if (e.getActionCommand().compareTo("Write to file")==0) {
+        	
+        	//String outputFileName = writeTable(constantsTable);
+			//JOptionPane.showMessageDialog(new JPanel(),"Calibration values written to "+outputFileName);
         }
     }
     
