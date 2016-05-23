@@ -69,6 +69,7 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 			if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
 
 				this.container.get(paddle.getDescriptor().getHashCode()).fill(paddle.position(), paddle.logRatio());
+				//this.container.get(paddle.getDescriptor().getHashCode()).fill(paddle.YPOS, paddle.logRatio());
 
 
 			} else {

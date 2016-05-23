@@ -104,7 +104,7 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
         
-        JButton buttonFit = new JButton("Fit HV");
+        JButton buttonFit = new JButton("Fit");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");

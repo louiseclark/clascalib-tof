@@ -159,7 +159,7 @@ public class TOFCalLeftRight implements IDetectorListener,IConstantsTableListene
     	//String file = "/home/louise/coatjava/FtofInputFile_panel1a1bS6_from_root_file1.evio";
     	
     	// Cole's file - use DataProviderRaw
-    	String file = "/home/louise/sector2_000251_mode7.evio.0";
+    	String file = "/home/louise/FTOF_calib_rewrite/input_files/sector2_000251_mode7.evio.0";
         EvioSource reader = new EvioSource();
         reader.open(file);
         System.out.println(reader.getSize());
@@ -168,7 +168,7 @@ public class TOFCalLeftRight implements IDetectorListener,IConstantsTableListene
         int eventNum = 0;
         while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
         	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
-        	lr.processEvent(event);
+        	//lr.processEvent(event);
         	eventNum++;
         }
 

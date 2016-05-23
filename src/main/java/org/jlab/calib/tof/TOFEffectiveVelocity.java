@@ -81,8 +81,6 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 	
 	public void init(){
 		
-		JOptionPane.showMessageDialog(new JPanel(),"TOFEffectiveVelocity init");
-				
         this.calibPane.getCanvasPane().add(canvas);
         this.constantsTable = new ConstantsTable(DetectorType.FTOF,
                 new String[]{"veff","veff_err"});

@@ -24,6 +24,16 @@ public class TOFPaddle {
     public int TDCR = 0;
     public float XPOS = 0; 
     public float YPOS = 0; 
+    public double RF_TIME = 0.0;
+    public double TOF_TIME = 0.0;
+    public double FLIGHT_TIME = 0.0;
+    public double VERTEX_Z = 0.0;
+    public int PARTICLE_ID = 0;
+    
+    public final int ELECTRON = 0;
+    public final int PION = 1;
+    private final double C = 29.98;
+    
     
     public TOFPaddle(int sector, int layer, int paddle){
         this.desc.setSectorLayerComponent(sector, layer, paddle);
@@ -175,8 +185,11 @@ public class TOFPaddle {
     public double position() {
 		double vEff = 16; // default effective velocity to 16cm/ns
 		return ((tdcToTime(TDCL)-tdcToTime(TDCR))*vEff)/2.0;
-    }
+    }  
     
+    public double refTime(double targetCentre) {
+    	return (this.TOF_TIME - this.FLIGHT_TIME - ((this.VERTEX_Z - targetCentre)/C) - this.RF_TIME);
+    }
 
     public DetectorDescriptor getDescriptor(){ return this.desc;}
     
