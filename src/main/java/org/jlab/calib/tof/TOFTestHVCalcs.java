@@ -158,8 +158,8 @@ public class TOFTestHVCalcs {
     			hvTestTable.getEntry(sector, layer, paddle).setData(7, Math.round(newHV));
     			hvTestTable.getEntry(sector, layer, paddle).setData(8, Math.round(newHV-origVoltage));
     			
-    			double newHVTest = hv.newHVTest(layer, origVoltage, ftof1aGains[paddle], ftof1aCentroids[paddle], "LEFT");
-    			hvTestTable.getEntry(sector, layer, paddle).setData(9, Math.round(newHVTest));
+    			//double newHVTest = hv.newHVTest(layer, origVoltage, ftof1aGains[paddle], ftof1aCentroids[paddle], "LEFT");
+    			//hvTestTable.getEntry(sector, layer, paddle).setData(9, Math.round(newHVTest));
     			
     			// Put values in graphs
     			paddleNumbers[paddle-1] = paddle;
@@ -168,7 +168,7 @@ public class TOFTestHVCalcs {
     			diffMipAdcs[paddle-1] = ftof1aGains[paddle] - javaMip;
     			diffCentroids1a[paddle-1] = ftof1aCentroids[paddle] - javaCentroid;
     			diffHVLeft1a[paddle-1] = Math.round(danNewVoltageLeft) - Math.round(newHV);
-    			diffHVLeft1aTest[paddle-1] = Math.round(danNewVoltageLeft) - Math.round(newHVTest);
+    			//diffHVLeft1aTest[paddle-1] = Math.round(danNewVoltageLeft) - Math.round(newHVTest);
     			
     			// Right
                 hvTestTable.addEntry(sector, layer, paddle+100);
@@ -190,11 +190,11 @@ public class TOFTestHVCalcs {
     			hvTestTable.getEntry(sector, layer, paddle+100).setData(7, Math.round(newHV));
     			hvTestTable.getEntry(sector, layer, paddle+100).setData(8, Math.round(newHV-origVoltage));
     			
-    			newHVTest = hv.newHVTest(layer, origVoltage, ftof1aGains[paddle], ftof1aCentroids[paddle], "RIGHT");
-    			hvTestTable.getEntry(sector, layer, paddle+100).setData(9, Math.round(newHVTest));
+    			//newHVTest = hv.newHVTest(layer, origVoltage, ftof1aGains[paddle], ftof1aCentroids[paddle], "RIGHT");
+    			//hvTestTable.getEntry(sector, layer, paddle+100).setData(9, Math.round(newHVTest));
 
     			diffHVRight1a[paddle-1] = Math.round(danNewVoltageRight) - Math.round(newHV);
-    			diffHVRight1aTest[paddle-1] = Math.round(danNewVoltageRight) - Math.round(newHVTest);
+    			//diffHVRight1aTest[paddle-1] = Math.round(danNewVoltageRight) - Math.round(newHVTest);
                 
 				//System.out.println("NEXT layer "+layer+" paddle "+paddle+" "+pmt);
     			line = newHVReader1a.readLine();
@@ -391,15 +391,15 @@ public class TOFTestHVCalcs {
     			hvTestTable.getEntry(sector, layer, paddle).setData(7, Math.round(newHV));
     			hvTestTable.getEntry(sector, layer, paddle).setData(8, Math.round(newHV-origVoltage));
     			
-    			double newHVTest = hv.newHVTest(layer, origVoltage, ftof1bGains[paddle], ftof1bCentroids[paddle], "LEFT");
-    			hvTestTable.getEntry(sector, layer, paddle).setData(9, Math.round(newHVTest));
+    			//double newHVTest = hv.newHVTest(layer, origVoltage, ftof1bGains[paddle], ftof1bCentroids[paddle], "LEFT");
+    			//hvTestTable.getEntry(sector, layer, paddle).setData(9, Math.round(newHVTest));
     			
     			// Put values in graphs
     			paddle1bNumbers[paddle-1] = paddle;
     			diffMipAdcs1b[paddle-1] = ftof1bGains[paddle] - javaMip;
     			diffCentroids1b[paddle-1] = ftof1bCentroids[paddle] - javaCentroid;
     			diffHVLeft1b[paddle-1] = Math.round(danNewVoltageLeft) - Math.round(newHV);
-    			diffHVLeft1bTest[paddle-1] = Math.round(danNewVoltageLeft) - Math.round(newHVTest);
+    			//diffHVLeft1bTest[paddle-1] = Math.round(danNewVoltageLeft) - Math.round(newHVTest);
 
     			// Right
                 hvTestTable.addEntry(sector, layer, paddle+100);
@@ -421,11 +421,11 @@ public class TOFTestHVCalcs {
     			hvTestTable.getEntry(sector, layer, paddle+100).setData(7, Math.round(newHV));
     			hvTestTable.getEntry(sector, layer, paddle+100).setData(8, Math.round(newHV-origVoltage));
     			
-    			newHVTest = hv.newHVTest(layer, origVoltage, ftof1bGains[paddle], ftof1bCentroids[paddle], "RIGHT");
-    			hvTestTable.getEntry(sector, layer, paddle+100).setData(9, Math.round(newHVTest));
+    			//newHVTest = hv.newHVTest(layer, origVoltage, ftof1bGains[paddle], ftof1bCentroids[paddle], "RIGHT");
+    			//hvTestTable.getEntry(sector, layer, paddle+100).setData(9, Math.round(newHVTest));
 
     			diffHVRight1b[paddle-1] = Math.round(danNewVoltageRight) - Math.round(newHV);
-    			diffHVRight1bTest[paddle-1] = Math.round(danNewVoltageRight) - Math.round(newHVTest);
+    			//diffHVRight1bTest[paddle-1] = Math.round(danNewVoltageRight) - Math.round(newHVTest);
                 
 				//System.out.println("NEXT layer "+layer+" paddle "+paddle+" "+pmt);
     			line = newHVReader1b.readLine();

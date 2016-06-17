@@ -50,9 +50,9 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 	private CalibrationPane  		calibPane = new CalibrationPane();
 	private ConstantsTable   			constantsTable = null;
 	private ConstantsTablePanel			constantsTablePanel;
-	
 	private CalibrationConstants veffConstants = new CalibrationConstants();
 	
+	private List<TOFPaddle>     eventList = new ArrayList<TOFPaddle>();
 	
 	TreeMap<Integer,H2D[]> container = new TreeMap<Integer,H2D[]>();
 	TreeMap<Integer,F1D[]> functions = new TreeMap<Integer,F1D[]>();
@@ -69,7 +69,16 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		return calibPane;
 	}	
 	
-	public void process(List<TOFPaddle> paddleList){
+	public void process(List<TOFPaddle> paddleList) {
+
+		for(TOFPaddle paddle : paddleList){
+			if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
+				eventList.add(paddle);
+			}
+		}
+	}
+	
+	public void processEvents(){
 		
 		// paddle list is processed 5 times each time correcting the time using refined values for lambda and order
 		//double[] lambda = {0.0,0.0};
@@ -83,7 +92,7 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		
 		//for (int i=0; i < NUM_ITERATIONS; i++) {
 			
-			for(TOFPaddle paddle : paddleList){
+			for(TOFPaddle paddle : eventList){
 				if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
 					
 					// fill timeResidual vs ADC
@@ -262,6 +271,10 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
     }
     
     public void analyze(){
+    	
+    	// fill the time residual vs ADC histograms
+    	processEvents();
+    	
 		for(int sector = 1; sector <= 6; sector++){
 		//for(int sector = 2; sector <= 2; sector++){
 			for (int layer = 1; layer <= 3; layer++) {
@@ -292,7 +305,7 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 				f.setParameter(0, 250.0);
 				f.setParameter(1, 0.0);
 				f.setParameter(2, 2.0);
-				h.fit(f, "RN");
+				h.fit(f, "RNQ");
 				
 				binSlices[i] = twL.getXAxis().getBinCenter(i);
 				means[i] = f.getParameter(1);
@@ -312,11 +325,14 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 			c2.draw(meanGraph);
 			
 			// fit function to the graph of means
-//			F1D trFunc = new F1D("[0]+([1]/Math.pow(x,[2]))");
+//			F1D trFunc = new F1D("[0]+([1]/x^[2]))");
 //			double[] initParams = {0.0,5.0,0.5};
 //			trFunc.setParameters(initParams);
 //			meanGraph.fit(trFunc);
 //			c2.draw(trFunc,"same");
+			
+			//System.out.println("New lambda is "+trFunc.getParameter(1));
+			//System.out.println("New order is "+trFunc.getParameter(2));
 		}
 	}
 	

@@ -8,7 +8,9 @@ package org.jlab.calib.tof;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.jlab.clas.detector.DetectorBankEntry;
 import org.jlab.clas.detector.DetectorType;
+import org.jlab.clas12.detector.DetectorChannelDecoder;
 import org.jlab.clas12.detector.DetectorCounter;
 import org.jlab.clas12.detector.EventDecoder;
 import org.jlab.evio.clas12.EvioDataBank;
@@ -104,12 +106,19 @@ public class DataProvider {
     public static List<TOFPaddle> getPaddleListRaw(EvioDataEvent event, EventDecoder decoder){
     	
         ArrayList<TOFPaddle>  paddleList = new ArrayList<TOFPaddle>();
-        decoder.decode(event);   
-        List<DetectorCounter> banks1A= decoder.getDetectorCounters(DetectorType.FTOF1A);
+        
+        
+        decoder.decode(event);  // orig method   
+        //decoder.readDataEntries(event); // new method
+        //List<DetectorBankEntry>  rawEntries =  decoder.getDataEntries(); // new method
+        
+        List<DetectorCounter> banks1A= decoder.getDetectorCounters(DetectorType.FTOF1A); // orig method
         List<DetectorCounter> banks1B = decoder.getDetectorCounters(DetectorType.FTOF1B);
         List<DetectorCounter> banks2 = decoder.getDetectorCounters(DetectorType.FTOF2);
                 
-        for(DetectorCounter bank : banks1A){
+        for(DetectorCounter bank : banks1A){  // orig method
+        //for (DetectorBankEntry bank : rawEntries) { // new method
+        	//translator.decode(rawEntries); // new method
         	if(bank.getChannels().size()==2){
         		if(bank.isMultiHit()==false){
         			// isMultihit() method returns false when

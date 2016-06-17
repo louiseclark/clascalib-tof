@@ -24,6 +24,7 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.text.Document;
 
 import org.jlab.clas.detector.*;
 import org.jlab.clas12.calib.CalibrationPane;
@@ -51,23 +52,31 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 	TreeMap<Integer,Double[]> constants = new TreeMap<Integer,Double[]>();
 	
 	// constants for indexing the histogram and constant arrays
+	// hists
 	public final int GEOMEAN = 0;
 	public final int LOGRATIO = 1;
+	
+	// consts
 	public final int LR_CENTROID = 0;
 	public final int LR_ERROR = 1;
 	public final int CURRENT_VOLTAGE_LEFT = 2;
 	public final int CURRENT_VOLTAGE_RIGHT = 3;
+	public final int GEOMEAN_OVERRIDE = 4;
+	public final int GEOMEAN_UNC_OVERRIDE = 5;
+	public final int LOGRATIO_OVERRIDE = 6;
+	public final int LOGRATIO_UNC_OVERRIDE = 7;	
 	
 	private final double[]		GM_HIST_MAX = {4000.0,8000.0,3000.0};
 	private final int[]			GM_HIST_BINS = {200, 300, 150};
-	private final double[]		GM_RANGE_MIN = {300.0, 700.0, 300.0};
-	private final double[]		GM_RANGE_MAX = {3000.0, 6000.0, 2700.0};
 	private final double 		LR_THRESHOLD_FRACTION = 0.2;
 	private final int			GM_REBIN_THRESHOLD = 50000;
 
     public final int[]		EXPECTED_MIP_CHANNEL = {800, 2000, 800};
-    public final int		ALLOWED_MIP_DIFF = 50;
+    public final int		ALLOWED_MIP_DIFF = 25;
     public final double[]	ALPHA = {13.4, 4.7, 8.6};
+    public final double[]	MAX_VOLTAGE = {2500.0, 2000.0, 2500.0};
+    public final double		MAX_DELTA_V = 250;
+    public final double		MIN_STATS = 100;
 	
 	public CalibrationPane getView() {
 		return calibPane;
@@ -113,12 +122,16 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
         JButton buttonAdjust = new JButton("Adjust HV");
         buttonAdjust.addActionListener(this);
         
+        JButton buttonExport = new JButton("Export plots");
+        buttonExport.addActionListener(this);
+
         JButton buttonWrite = new JButton("Write to file");
         buttonWrite.addActionListener(this);
         
         this.calibPane.getBottonPane().add(buttonFit);
         this.calibPane.getBottonPane().add(buttonViewAll);
         this.calibPane.getBottonPane().add(buttonAdjust);
+        this.calibPane.getBottonPane().add(buttonExport);
         this.calibPane.getBottonPane().add(buttonWrite);
         
 		DetectorDescriptor desc = new DetectorDescriptor();
@@ -191,10 +204,11 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
         	int paddle = constantsTablePanel.getSelected().getComponent();
 	    	
         	customFit(sector, layer, paddle);
-	    	F1D f = getF1D(sector, layer, paddle)[GEOMEAN];
 	    	
-	    	constantsTable.getEntry(sector, layer, paddle).setData(0, Math.round(f.getParameter(1)));
-	    	constantsTable.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(f.parameter(1).error())));
+	    	constantsTable.getEntry(sector, layer, paddle).setData(0, 
+	    			Math.round(getMipChannel(sector, layer, paddle)));
+	    	constantsTable.getEntry(sector, layer, paddle).setData(1, 
+	    			Double.parseDouble(new DecimalFormat("0.0").format(getMipChannelUnc(sector, layer, paddle))));
 			//constantsTable.fireTableDataChanged();
 			
 			drawComponent(sector, layer, paddle, canvas);
@@ -223,6 +237,12 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
         	hvFrame.pack();
         	hvFrame.setVisible(true);
         	hvFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+        	
+        }
+        else if (e.getActionCommand().compareTo("Export plots")==0){
+
+        	int sector = constantsTablePanel.getSelected().getSector();
+        	int layer = constantsTablePanel.getSelected().getLayer();
         	
         }
         else if (e.getActionCommand().compareTo("Write to file")==0) {
@@ -296,12 +316,6 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 
 		int layer_index = layer-1;
 
-		/////// TEST CODE
-//		if (minRange==0.0 && maxRange==0.0) {
-//			minRange = GM_RANGE_MIN[layer_index];
-//			maxRange = GM_RANGE_MAX[layer_index];
-//		}
-
 		TOFH1D h = this.getH1D(sector, layer, paddle)[GEOMEAN];
 
 		// First rebin depending on number of entries
@@ -339,9 +353,6 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 		}
 
 		// find the maximum bin after the start channel for the fit
-		//System.out.println("Paddle " + paddle);
-		//System.out.println("Start channel " + startChannelForFit);
-		//System.out.println("End channel " + endChannelForFit);
 		int startBinForFit = h.getxAxis().getBin(startChannelForFit);
 		int endBinForFit = h.getxAxis().getBin(endChannelForFit);
 
@@ -355,22 +366,26 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 		}
 
 		double maxPos = h.getAxis().getBinCenter(maxBin);
+		
+		// adjust the range now that the max has been found
+		// unless it's been set to custom value
+		if (minRange == 0.0) {
+			startChannelForFit = maxPos*0.5;
+		}
+		if (maxRange == 0.0) {
+			endChannelForFit = maxPos+GM_HIST_MAX[layer_index]*0.4;
+			if (endChannelForFit > 0.9*GM_HIST_MAX[layer_index]) {
+				endChannelForFit = 0.9*GM_HIST_MAX[layer_index];
+			}	
+		}
+		
 		F1D gmFunc = new F1D("landau+exp",startChannelForFit, endChannelForFit);
 		
-		//System.out.println("maxCounts "+maxCounts);
-		//System.out.println("maxPos "+maxPos);
-		
-		//double[] params = {maxCounts, maxPos, 200.0, 600.0, -0.001};
-		
-		//gmFunc.setParameters(params);
-		gmFunc.setParameter(0, maxCounts);
+		gmFunc.setParameter(0, maxCounts*0.5);
 		gmFunc.setParameter(1, maxPos);
-//		gmFunc.setParameter(2, 100.0);
 		gmFunc.setParameter(2, 200.0);
 		gmFunc.setParLimits(2, 0.0,400.0);
-//		gmFunc.setParameter(3, 20.0);
-		gmFunc.setParameter(3, 600.0);
-//		gmFunc.setParameter(4, 0.0);
+		gmFunc.setParameter(3, maxCounts*0.5);
 		gmFunc.setParameter(4, -0.001);
 		
 		try {	
@@ -488,42 +503,10 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 		
 		// put the constants in the treemap
 		Double[] consts = {logRatioMean, logRatioError, 
-						   0.0, 0.0};
+						   0.0, 0.0, 0.0, 0.0};
 		constants.put(desc.getHashCode(), consts);
 
 	}
-	
-public double newHVTest(int layer, double origVoltage, double gainIn, double centroid, String pmt) {
-		
-		int layer_index = layer - 1;
-		
-		double gainLR = 0.0;
-		if (pmt == "LEFT") {
-			gainLR = gainIn / (Math.sqrt(Math.exp(centroid)));
-		}
-		else {
-			gainLR = gainIn * (Math.sqrt(Math.exp(centroid)));
-		}
-		
-		double deltaGain = EXPECTED_MIP_CHANNEL[layer_index] - gainLR;
-		double deltaV = (origVoltage * deltaGain) / (gainLR * ALPHA[layer_index]);
-		
-		double newVoltage = origVoltage + deltaV;
-
-//		System.out.println(sector+" "+layer+" "+paddle+" "+pmt);
-//		System.out.println("origVoltage = "+origVoltage);
-//		System.out.println("gainIn = "+gainIn);
-//		System.out.println("centroid = "+centroid);
-//		System.out.println("gainLR = "+gainLR);
-//		System.out.println("deltaGainLeft = "+deltaGain);
-//		System.out.println("deltaV = "+deltaV);
-//		System.out.println("return = "+newVoltage);
-		
-		
-		return newVoltage;
-		
-	}
-	
 	
 	public double newHV(int sector, int layer, int paddle, double origVoltage, String pmt) {
 		
@@ -531,43 +514,87 @@ public double newHVTest(int layer, double origVoltage, double gainIn, double cen
 		DetectorDescriptor desc = new DetectorDescriptor();
 		desc.setSectorLayerComponent(sector, layer, paddle);
 		
-		System.out.println("new HV "+sector+layer+paddle);
 		double gainIn = getF1D(sector, layer, paddle)[GEOMEAN].getParameter(1);
 		double centroid = getConst(sector, layer, paddle)[LR_CENTROID];
 		
 		double gainLR = 0.0;
 		if (pmt == "LEFT") {
 			gainLR = gainIn / (Math.sqrt(Math.exp(centroid)));
+			
 			// put the constants in the treemap
-			Double[] consts = {getConst(sector, layer, paddle)[LR_CENTROID], getConst(sector, layer, paddle)[LR_ERROR], 
-							   origVoltage, getConst(sector, layer, paddle)[CURRENT_VOLTAGE_RIGHT]};
+			Double[] consts = getConst(sector, layer, paddle);
+			consts[CURRENT_VOLTAGE_LEFT] = origVoltage;
 			constants.put(desc.getHashCode(), consts);
 		}
 		else {
 			gainLR = gainIn * (Math.sqrt(Math.exp(centroid)));
+
 			// put the constants in the treemap
-			Double[] consts = {getConst(sector, layer, paddle)[LR_CENTROID], getConst(sector, layer, paddle)[LR_ERROR], 
-					getConst(sector, layer, paddle)[CURRENT_VOLTAGE_LEFT], origVoltage};
+			Double[] consts = getConst(sector, layer, paddle);
+			consts[CURRENT_VOLTAGE_RIGHT] = origVoltage;
 			constants.put(desc.getHashCode(), consts);
 		}
 		
 		double deltaGain = EXPECTED_MIP_CHANNEL[layer_index] - gainLR;
+
+		System.out.println(sector+" "+layer+" "+paddle+" "+pmt);
+
+		// Stop changing voltage if close enough
+		if (Math.abs(deltaGain) < ALLOWED_MIP_DIFF) {
+			System.out.println("deltaGain within allowed channel diff");
+			deltaGain = 0;
+		}
 		double deltaV = (origVoltage * deltaGain) / (gainLR * ALPHA[layer_index]);
 		
-		double newVoltage = origVoltage + deltaV;
+		// Safety check - don't exceed maximum voltage change
+		if (deltaV > MAX_DELTA_V) {
+			System.out.println("Max deltaV exceeded");
 
-//		System.out.println(sector+" "+layer+" "+paddle+" "+pmt);
-//		System.out.println("origVoltage = "+origVoltage);
-//		System.out.println("gainIn = "+gainIn);
-//		System.out.println("centroid = "+centroid);
-//		System.out.println("gainLR = "+gainLR);
-//		System.out.println("deltaGainLeft = "+deltaGain);
-//		System.out.println("deltaV = "+deltaV);
-//		System.out.println("return = "+newVoltage);
+			deltaV = MAX_DELTA_V;
+		} else if (deltaV < -MAX_DELTA_V) {
+			System.out.println("Max deltaV exceeded");
+			deltaV = -MAX_DELTA_V;
+		}
 		
+		// Don't change voltage if stats are low
+		if (getH1D(sector, layer, paddle)[GEOMEAN].getEntries() < MIN_STATS) {
+			System.out.println("Low stats, deltaV set to zero");
+			deltaV = 0.0;
+		};
+		
+		double newVoltage = origVoltage + deltaV;
+		
+		// Safety check - don't exceed maximum voltage
+		if (newVoltage > MAX_VOLTAGE[layer_index]) {
+			System.out.println("Max V exceeded");
+			newVoltage = MAX_VOLTAGE[layer_index];
+		} else if (newVoltage < -MAX_VOLTAGE[layer_index]) {
+			System.out.println("Max V exceeded");
+			newVoltage = -MAX_VOLTAGE[layer_index];
+		}			
+
+		System.out.println("origVoltage = "+origVoltage);
+		System.out.println("gainIn = "+gainIn);
+		System.out.println("centroid = "+centroid);
+		System.out.println("gainLR = "+gainLR);
+		System.out.println("deltaGain = "+deltaGain);
+		System.out.println("deltaV = "+deltaV);
+		System.out.println("return = "+newVoltage);		
 		
 		return newVoltage;
 		
+	}
+	
+	private double toDouble(String stringVal) {
+		
+		double doubleVal;
+		try {
+			doubleVal = Double.parseDouble(stringVal);
+		}
+		catch (NumberFormatException e) {
+			doubleVal = 0.0;
+		}
+		return doubleVal;
 	}
 	
 	public void customFit(int sector, int layer, int paddle){
@@ -581,8 +608,19 @@ public double newHVTest(int layer, double origVoltage, double gainIn, double cen
 				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
-			double minRange = Double.parseDouble(panel.minRange.getText());
-			double maxRange = Double.parseDouble(panel.maxRange.getText());
+			double minRange = toDouble(panel.minRange.getText());
+			double maxRange = toDouble(panel.maxRange.getText());
+			double overrideValue = toDouble(panel.overrideValue.getText());
+			double overrideUnc = toDouble(panel.overrideUnc.getText());
+			
+			// put the constants in the treemap
+			Double[] consts = getConst(sector, layer, paddle);
+			consts[GEOMEAN_OVERRIDE] = overrideValue;
+			consts[GEOMEAN_UNC_OVERRIDE] = overrideUnc;
+
+			DetectorDescriptor desc = new DetectorDescriptor();
+			desc.setSectorLayerComponent(sector, layer, paddle);
+			constants.put(desc.getHashCode(), consts);
 
 			fitGeoMean(sector, layer, paddle, minRange, maxRange);
 
@@ -600,8 +638,37 @@ public double newHVTest(int layer, double origVoltage, double gainIn, double cen
 	}	
 	
 	public double getMipChannel(int sector, int layer, int paddle) {
-		return getCalibrationValue(sector, layer, paddle, GEOMEAN, 1);
+		
+		double mipChannel = 0.0;
+		// has the value been overridden?
+		double overrideVal = constants.get(DetectorDescriptor.generateHashCode(sector, layer, paddle))[GEOMEAN_OVERRIDE];
+		
+		if (overrideVal != 0.0) {
+			mipChannel = overrideVal;
+		}
+		else {
+			mipChannel = getCalibrationValue(sector, layer, paddle, GEOMEAN, 1);
+		}
+				
+		return mipChannel;
 	}
+	
+	public double getMipChannelUnc(int sector, int layer, int paddle) {
+		
+		double mipChannelUnc = 0.0;
+		// has the value been overridden?
+		double overrideUnc = constants.get(DetectorDescriptor.generateHashCode(sector, layer, paddle))[GEOMEAN_UNC_OVERRIDE];
+		
+		if (overrideUnc != 0.0) {
+			mipChannelUnc = overrideUnc;
+		}
+		else {
+			F1D f = getF1D(sector, layer, paddle)[GEOMEAN];
+			mipChannelUnc = f.parameter(1).error();
+		}
+				
+		return mipChannelUnc;
+	}	
 	
 	public double getCalibrationValue(int sector, int layer, int paddle, int funcNum, int param) {
 		

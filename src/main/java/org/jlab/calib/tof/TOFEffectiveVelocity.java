@@ -286,7 +286,7 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 		double highLimit = meanGraph.getDataX(highIndex);
 		
 		F1D veffFunc = new F1D("p1", lowLimit, highLimit);
-		meanGraph.fit(veffFunc,"RN");
+		meanGraph.fit(veffFunc,"RNQ");
 
 		// Store the fitted function
 		DetectorDescriptor desc = new DetectorDescriptor();

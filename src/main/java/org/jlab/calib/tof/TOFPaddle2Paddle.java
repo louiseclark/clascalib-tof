@@ -518,7 +518,7 @@ public class TOFPaddle2Paddle   implements IDetectorListener,IConstantsTableList
 		fineFunc.setParameter(2, 0.5);
 		
 		try {
-			fineHist.fit(fineFunc, "RN");
+			fineHist.fit(fineFunc, "RNQ");
 			fineFuncs.put(desc.getHashCode(), fineFunc);
 			offsets.put(desc.getHashCode(), fineFunc.getParameter(1));
 			

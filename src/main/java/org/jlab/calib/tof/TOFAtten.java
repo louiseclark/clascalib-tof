@@ -83,14 +83,14 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 		
         this.calibPane.getCanvasPane().add(canvas);
         this.constantsTable = new ConstantsTable(DetectorType.FTOF,
-                new String[]{"Slope","Intercept"});
+                new String[]{"attlen","attlen_err","y_offset"});
 
         this.constantsTablePanel = new ConstantsTablePanel(this.constantsTable);
         
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        JButton buttonFit = new JButton("Fit Atten");
+        JButton buttonFit = new JButton("Fit");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");
@@ -112,7 +112,7 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 					desc.setSectorLayerComponent(sector, layer, paddle);
 									
 					H2D hist = new H2D("Log Ratio vs Position : Paddle "+paddle,"Log Ratio vs Position : Paddle "+paddle, 
-							100, -200.0, 200.0, 100, -5.0, 5.0);
+							100, -250.0, 250.0, 100, -3.0, 3.0);
 					container.put(desc.getHashCode(), hist);
 				}
 			}
@@ -173,8 +173,10 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 	    	F1D f = getF1D(sector, layer, paddle);
 	    	
 	    	constantsTable.getEntry(sector, layer, paddle).setData(0, 
-	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getSlope(sector, layer, paddle))));
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getAttlen(sector, layer, paddle))));
 	    	constantsTable.getEntry(sector, layer, paddle).setData(1, 
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getAttlenError(sector, layer, paddle))));
+	    	constantsTable.getEntry(sector, layer, paddle).setData(2, 
 	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getIntercept(sector, layer, paddle))));
 			//constantsTable.fireTableDataChanged();
 			
@@ -236,30 +238,37 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 	public void fit(int sector, int layer, int paddle) {
 		
 		H2D attenHist = getH2D(sector, layer, paddle);
-
+		
 		// fit function to the graph of means
 		GraphErrors meanGraph = attenHist.getProfileX();
+		
+		// or maybe do graph of gaussian mean
+//		int numBins = attenHist.getXAxis().getNBins();
+//		double[] binSlices = new double[numBins];
+//		double[] means = new double[numBins];
 
 		// find the range for the fit
-		// TO DO
-		
-		int graphMaxIndex = meanGraph.getDataSize(0)-1;
-		int graphMinIndex = 0;
-		int highIndex=80;
-		int lowIndex=20;
+		ArrayList<H1D> attenSlices = attenHist.getSlicesX();
+				
+		int maxIndex = meanGraph.getDataSize(0)-1;
+		int highIndex = 80;
+		int lowIndex = 20;
 		int centreIndex = meanGraph.getDataSize(0)/2;
-
-		for (int pos=centreIndex; pos < graphMaxIndex; pos++) {
+		int centreCounts = attenSlices.get(centreIndex).getEntries();
+		
+		for (int pos=centreIndex; pos < maxIndex; pos++) {
 			
-		    if(meanGraph.getDataY(pos) < meanGraph.getDataY(pos-1)){
-			      highIndex = pos-2;
+		    if(attenSlices.get(pos).getEntries() < 0.5*centreCounts) {
+			      highIndex = pos;
 			      break;
 		    }
 		}
 		
 		for (int pos=centreIndex; pos>=1; pos--) {
-		    if(meanGraph.getDataY(pos) > meanGraph.getDataY(pos+1)){
-			      lowIndex = pos+2;
+			
+			if(attenSlices.get(pos).getEntries() < 0.5*centreCounts) {
+		    	
+			      lowIndex = pos;
 			      break;
 		    }
 		}
@@ -268,8 +277,49 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 		double highLimit = meanGraph.getDataX(highIndex);
 		
 		F1D attenFunc = new F1D("p1", lowLimit, highLimit);
-		meanGraph.fit(attenFunc,"RN");
+		meanGraph.fit(attenFunc,"REQ");
 
+		
+		// try fitting a gaussian to each bin
+		// don't get good results with this!
+//		for (int i=0; i<numBins; i++) {
+//			
+//			if ((sector==2 && paddle==9) || (sector==2 && paddle==15)) {
+//				
+//			}
+//			else {
+//				break;
+//			}
+//			H1D h = attenSlices.get(i);
+//			F1D f = new F1D("gaus",h.getMean()-0.5,h.getMean()+0.5);
+//			f.setParameter(0, h.getBinContent(h.getMaximumBin()));
+//			f.setParameter(1, h.getMean());
+//			f.setParameter(2, h.getRMS());
+//			try {
+//				h.fit(f, "RL");
+//			}
+//			catch (Exception ex) {
+//				ex.printStackTrace();
+//			}
+//			
+//			binSlices[i] = attenHist.getXAxis().getBinCenter(i);
+//			means[i] = f.getParameter(1);
+//		
+//			if ((i==50 && paddle==9) || (i==35 && paddle==15)) {
+//				TCanvas c1 = new TCanvas("atten slices","atten slices",1200,800,1,1);
+//				c1.setDefaultCloseOperation(c1.HIDE_ON_CLOSE);
+//				c1.cd(0);
+//				c1.draw(h);
+//				c1.draw(f,"same");
+//			}
+//	
+//		}
+//		
+//				
+//		GraphErrors gausGraph = new GraphErrors("Gaus Graph", binSlices, means);
+//		F1D attenFunc2 = new F1D("p1", lowLimit, highLimit);
+//		gausGraph.fit(attenFunc2,"RE");
+		
 		// Store the fitted function
 		DetectorDescriptor desc = new DetectorDescriptor();
 		desc.setSectorLayerComponent(sector, layer, paddle);
@@ -287,20 +337,52 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
 		
-		int numHists = 1; //this.getH2D(sector, layer, paddle).length;
-		canvas.divide(numHists, 1);
-		
-		for (int i=0; i<numHists; i++) {			
-
-			canvas.cd(i);
-
-			Font font = new Font("Verdana", Font.PLAIN, 7);		
-			canvas.getPad().setFont(font);
+		// summary
+		// using same graphic
+		// so layer==4 is summary
+		// paddle number 1 = 1A, 2 = 1B, 3 = panel 2
+		if (layer==4) {
+			System.out.println(sector + " " + layer + " " + paddle);
+			int layer_index = paddle - 1;
+			double[] paddleNumbers = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] paddleUncs = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] attenLengths = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] attenLengthUncs = new double[TOFCalibration.NUM_PADDLES[layer_index]];
 			
-			H2D hist = getH2D(sector, layer, paddle);
+			for (int p=1; p <= TOFCalibration.NUM_PADDLES[layer_index]; p++ ) {
+				
+				paddleNumbers[p-1] = (double) p;
+				paddleUncs[p-1] = 0.0;
+				attenLengths[p-1] = getAttlen(sector, paddle, p);
+				attenLengthUncs[p-1] = getAttlenError(sector, paddle, p);
+			}
+				
+			GraphErrors summary = new GraphErrors("Summary", paddleNumbers, attenLengths, paddleUncs, attenLengthUncs);
+			summary.setTitle("Attenuation Length: "+TOFCalibration.LAYER_NAME[paddle-1]+" Sector "+sector);
+			summary.setXTitle("Paddle Number");
+			summary.setYTitle("Attenuation Length (cm)");
+			summary.setMarkerSize(5);
+			summary.setMarkerStyle(2);
+			canvas.draw(summary);
 			
-			canvas.draw(hist,"");
-			canvas.draw(this.getF1D(sector, layer, paddle),"same");
+		}
+		else {
+			
+			int numHists = 1; 
+			canvas.divide(numHists, 1);
+
+			for (int i=0; i<numHists; i++) {			
+
+				canvas.cd(i);
+
+				Font font = new Font("Verdana", Font.PLAIN, 7);		
+				canvas.getPad().setFont(font);
+
+				H2D hist = getH2D(sector, layer, paddle);
+
+				canvas.draw(hist,"");
+				canvas.draw(this.getF1D(sector, layer, paddle),"same");
+			}
 		}
 		
 	}
@@ -333,9 +415,26 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 		return this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}
 
-	public Double getSlope (int sector, int layer, int paddle) {
+	public Double getAttlen (int sector, int layer, int paddle) {
 		double gradient = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParameter(1);
-		return gradient;
+		if (gradient==0.0) {
+			return 0.0;
+		}
+		else {
+			return 2/gradient;
+		}
+	}
+	
+	public Double getAttlenError (int sector, int layer, int paddle) {
+		double gradient = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParameter(1);
+		double gradientErr = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParError(1);
+		double attlen = getAttlen(sector, layer, paddle);
+		if (gradient==0.0) {
+			return 0.0;
+		}
+		else {
+			return (gradientErr/gradient) * attlen;
+		}
 	}
 	
 	public Double getIntercept (int sector, int layer, int paddle){
@@ -352,8 +451,10 @@ public class TOFAtten   implements IDetectorListener,IConstantsTableListener,Act
 			table.addEntry(sector, layer, paddle);
 			
 	    	table.getEntry(sector, layer, paddle).setData(0, 
-	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getSlope(sector, layer, paddle))));
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getAttlen(sector, layer, paddle))));
 	    	table.getEntry(sector, layer, paddle).setData(1, 
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getAttlenError(sector, layer, paddle))));
+	    	table.getEntry(sector, layer, paddle).setData(2, 
 	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getIntercept(sector, layer, paddle))));
 			
 		}

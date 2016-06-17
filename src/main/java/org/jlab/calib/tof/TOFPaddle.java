@@ -169,11 +169,18 @@ public class TOFPaddle {
     	return c0+c1*this.TDCR;
     }    
     
-    double tdcToTime(double value){
+    double clas6TdcToTime(double value){
     	double c1=0.0009811; // average value from CLAS
     	double c0=0;
     	return c0+c1*value;
-    }		
+    }	
+    
+    double tdcToTime(double value){
+    	double c1=0.024; // constant value for CLAS12
+    	double c0=0;
+    	return c0+c1*value;
+    }	
+    
     
     double halfTimeDiff() {
     	

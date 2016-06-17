@@ -111,7 +111,7 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
 					desc.setSectorLayerComponent(sector, layer, paddle);
 									
 					H1D hist = new H1D("Left Right Sector "+sector+" Paddle "+paddle,"Left Right Sector "+sector+" Paddle "+paddle, 
-							200, -40.0, 40.0);
+							200, -960.0, 960.0);
 					container.put(desc.getHashCode(), hist);
 				}
 			}
@@ -120,8 +120,8 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
 
 	public void initDisplay(){
 		
-        // Display sector 5 initially
-        drawComponent(5, 1, 1, canvas);
+        // Display sector 2 initially
+        drawComponent(2, 1, 1, canvas);
         
         // Until I can delete rows from the table will just add all sectors
         for (int sector=1; sector<=6; sector++) {
@@ -235,7 +235,7 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
 	public void fitLeftRight(int sector, int layer, int paddle) {
 		
 		H1D leftRightHist = this.getH1D(sector, layer, paddle);
-
+		
 		int nBin = leftRightHist.getXaxis().getNBins();
 
 		// calculate the 'average' of all bins

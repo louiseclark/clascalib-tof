@@ -21,6 +21,7 @@ import javax.swing.JTabbedPane;
 import org.jlab.clas.detector.DetectorType;
 import org.jlab.clas12.calib.DetectorShape2D;
 import org.jlab.clas12.calib.DetectorShapeView2D;
+import org.jlab.clas12.detector.DetectorChannelDecoder;
 import org.jlab.clas12.detector.EventDecoder;
 import org.jlab.evio.clas12.EvioDataEvent;
 import org.jlab.evio.clas12.EvioSource;
@@ -43,7 +44,7 @@ public class TOFCalibration {
     private TOFPaddle2Paddle			p2p = new TOFPaddle2Paddle();
         
     public final static int[]		NUM_PADDLES = {23,62,5};
-    public final String[]	LAYER_NAME = {"FTOF1A","FTOF1B","FTOF2"};
+    public final static String[]	LAYER_NAME = {"FTOF1A","FTOF1B","FTOF2"};
     
     public TOFCalibration(String inputFile){
         this.initDetector();
@@ -138,8 +139,10 @@ public class TOFCalibration {
 
     			DetectorShape2D  shape = new DetectorShape2D();
     			//shape.createTrapXY(30, 20, 80+layer_index*20);
-    			shape.getDescriptor().setType(DetectorType.FTOF1A);
-    			shape.getDescriptor().setSectorLayerComponent(sector, layer, 0);
+    			shape.getDescriptor().setType(DetectorType.FTOF1A);    		
+    			
+    			// call summary tab layer 4 with paddles 1-3 on the graphic representing 1a,1b,2
+    			shape.getDescriptor().setSectorLayerComponent(sector, 4, layer);  
     			shape.createBarXY(18, 80 + layer_index*20);
     			//shape.getShapePath().rotateZ(Math.toRadians((sector_index*60.0)+180.0));
     			shape.getShapePath().translateXYZ(120+20*layer_index, 0, 0);
@@ -174,13 +177,19 @@ public class TOFCalibration {
     	
     	String file = inputFile;
     	
-    	if (inputFile.endsWith("evio")) {
+    	if (inputFile.contains(".evio")) {
     	
     		EvioSource reader = new EvioSource();
     		reader.open(file);
     		System.out.println(reader.getSize());
         
     		EventDecoder decoder = new EventDecoder();
+    		
+    		// new method?
+    		DetectorChannelDecoder  translator = new DetectorChannelDecoder();
+    		translator.clear();
+    		translator.add("FTOF","/daq/tt/ftof");
+    		translator.init(10,"default");
         
 	        int maxEvents = 0;
 	        int eventNum = 0;
