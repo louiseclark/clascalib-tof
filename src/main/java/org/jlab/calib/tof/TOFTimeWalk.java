@@ -370,14 +370,14 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		H2D h = getH2D(sector, layer, paddle)[LEFT];
 		F1D f = getF1D(sector, layer, paddle)[LEFT];        
 		
-		TOFCustomFitPanel panel = new TOFCustomFitPanel();
+		TOFCustomFitPanel panel = new TOFCustomFitPanel(null);
 
 		int result = JOptionPane.showConfirmDialog(null, panel, 
 				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
-			double minRange = Double.parseDouble(panel.minRange.getText());
-			double maxRange = Double.parseDouble(panel.maxRange.getText());
+			//double minRange = Double.parseDouble(panel.minRange.getText());
+			//double maxRange = Double.parseDouble(panel.maxRange.getText());
 
 			//fitGeoMean(sector, layer, paddle, minRange, maxRange);
 

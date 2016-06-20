@@ -599,19 +599,18 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		H1D h = getH1D(sector, layer, paddle)[GEOMEAN];
-		F1D f = getF1D(sector, layer, paddle)[GEOMEAN];        
-		
-		TOFCustomFitPanel panel = new TOFCustomFitPanel();
+		String[] fields = {"Min range", "Max range", "Override MIP channel", "Override MIP channel uncertainty"};
+		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
 		int result = JOptionPane.showConfirmDialog(null, panel, 
 				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
-			double minRange = toDouble(panel.minRange.getText());
-			double maxRange = toDouble(panel.maxRange.getText());
-			double overrideValue = toDouble(panel.overrideValue.getText());
-			double overrideUnc = toDouble(panel.overrideUnc.getText());
+			double minRange = toDouble(panel.textFields[0].getText());
+			double maxRange = toDouble(panel.textFields[1].getText());
+			double overrideValue = toDouble(panel.textFields[2].getText());
+			double overrideUnc = toDouble(panel.textFields[3].getText());			
+			
 			
 			// put the constants in the treemap
 			Double[] consts = getConst(sector, layer, paddle);

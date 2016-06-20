@@ -53,9 +53,12 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 		
 	TreeMap<Integer,H2D> container = new TreeMap<Integer,H2D>();
 	TreeMap<Integer,F1D> functions = new TreeMap<Integer,F1D>();
-	
-	// constants for indexing the histogram and constant arrays
-	// ?? Do I need any?
+	TreeMap<Integer, Double[]> constants = new TreeMap<Integer, Double[]>();
+
+	// constants for indexing the constants array
+	public final int VEFF_OVERRIDE = 0;
+	public final int VEFF_UNC_OVERRIDE = 1;
+
 	
 	public CalibrationPane getView() {
 		return calibPane;
@@ -90,7 +93,7 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        JButton buttonFit = new JButton("Fit Veff");
+        JButton buttonFit = new JButton("Fit");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");
@@ -119,6 +122,11 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 							100, lowY(paddle), highY(paddle), 
 							200, -10.0, 10.0);
 					container.put(desc.getHashCode(), hist);
+
+					// initialize the treemap of constants array
+					Double[] consts = { 0.0, 0.0};
+					constants.put(desc.getHashCode(), consts);
+
 				}
 			}
 		}
@@ -188,7 +196,6 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
         	int paddle = constantsTablePanel.getSelected().getComponent();
 	    	
         	customFit(sector, layer, paddle);
-	    	F1D f = getF1D(sector, layer, paddle);
 	    	
 	    	constantsTable.getEntry(sector, layer, paddle).setData(0, 
 	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getVeff(sector, layer, paddle))));
@@ -245,13 +252,14 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 			for (int layer = 1; layer <= 3; layer++) {
 				int layer_index = layer-1;
 				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
-					fitEffectiveVelocity(sector, layer, paddle);
+					fitEffectiveVelocity(sector, layer, paddle, 0.0, 0.0);
 				}
 			}
 		}
 	}
 	
-	public void fitEffectiveVelocity(int sector, int layer, int paddle) {
+	public void fitEffectiveVelocity(int sector, int layer, int paddle,
+			double minRange, double maxRange) {
 		
 		H2D veffHist = getH2D(sector, layer, paddle);
 
@@ -259,31 +267,41 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 		GraphErrors meanGraph = veffHist.getProfileX();
 
 		// find the range for the fit
-		// TO DO
+		double lowLimit;
+		double highLimit;
 		
-		int graphMaxIndex = meanGraph.getDataSize(0)-1;
-		int graphMinIndex = 0;
-		int highIndex=80;
-		int lowIndex=20;
-		int centreIndex = meanGraph.getDataSize(0)/2;
+		if (minRange != 0.0 && maxRange != 0.0) {
 
-		for (int pos=centreIndex; pos < graphMaxIndex; pos++) {
+			// use custom values for fit
+			lowLimit = minRange;
+			highLimit = maxRange;
+		}
+		else {
+
+			int lowIndex = 20;
+			int highIndex = 80;
+			int graphMaxIndex = meanGraph.getDataSize(0)-1;
+	
+			int centreIndex = meanGraph.getDataSize(0)/2;
+	
+			for (int pos=centreIndex; pos < graphMaxIndex; pos++) {
+				
+			    if(meanGraph.getDataY(pos) < meanGraph.getDataY(pos-1)){
+				      highIndex = pos-2;
+				      break;
+			    }
+			}
 			
-		    if(meanGraph.getDataY(pos) < meanGraph.getDataY(pos-1)){
-			      highIndex = pos-2;
-			      break;
-		    }
+			for (int pos=centreIndex; pos>=1; pos--) {
+			    if(meanGraph.getDataY(pos) > meanGraph.getDataY(pos+1)){
+				      lowIndex = pos+2;
+				      break;
+			    }
+			}
+			
+			lowLimit = meanGraph.getDataX(lowIndex);
+			highLimit = meanGraph.getDataX(highIndex);
 		}
-		
-		for (int pos=centreIndex; pos>=1; pos--) {
-		    if(meanGraph.getDataY(pos) > meanGraph.getDataY(pos+1)){
-			      lowIndex = pos+2;
-			      break;
-		    }
-		}
-		
-		double lowLimit = meanGraph.getDataX(lowIndex);
-		double highLimit = meanGraph.getDataX(highIndex);
 		
 		F1D veffFunc = new F1D("p1", lowLimit, highLimit);
 		meanGraph.fit(veffFunc,"RNQ");
@@ -323,22 +341,44 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 		
 	}
 
+	private double toDouble(String stringVal) {
+
+		double doubleVal;
+		try {
+			doubleVal = Double.parseDouble(stringVal);
+		} catch (NumberFormatException e) {
+			doubleVal = 0.0;
+		}
+		return doubleVal;
+	}
+
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		H2D h = getH2D(sector, layer, paddle);
-		F1D f = getF1D(sector, layer, paddle);        
-		
-		TOFCustomFitPanel panel = new TOFCustomFitPanel();
+		String[] fields = { "Min range", "Max range",
+				"Override effective velocity", "Override unc"};
+				
+		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
 		int result = JOptionPane.showConfirmDialog(null, panel, 
 				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
-			double minRange = Double.parseDouble(panel.minRange.getText());
-			double maxRange = Double.parseDouble(panel.maxRange.getText());
+			double minRange = toDouble(panel.textFields[0].getText());
+			double maxRange = toDouble(panel.textFields[1].getText());
+			double overrideValue = toDouble(panel.textFields[2].getText());
+			double overrideUnc = toDouble(panel.textFields[3].getText());
 
-			//fitGeoMean(sector, layer, paddle, minRange, maxRange);
+			// put the constants in the treemap
+			Double[] consts = getConst(sector, layer, paddle);
+			consts[VEFF_OVERRIDE] = overrideValue;
+			consts[VEFF_UNC_OVERRIDE] = overrideUnc;
+
+			DetectorDescriptor desc = new DetectorDescriptor();
+			desc.setSectorLayerComponent(sector, layer, paddle);
+			constants.put(desc.getHashCode(), consts);
+
+			fitEffectiveVelocity(sector, layer, paddle, minRange, maxRange);
 
 		}	 
 	}
@@ -350,33 +390,60 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 	public F1D getF1D(int sector, int layer, int paddle){
 		return this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}
+	
+	public Double[] getConst(int sector, int layer, int paddle) {
+		return this.constants.get(DetectorDescriptor.generateHashCode(sector,
+				layer, paddle));
+	}
+
 
 	public Double getVeff(int sector, int layer, int paddle) {
-		double gradient = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParameter(1);
+		
 		double veff = 0.0;
-		if (gradient==0.0) {
-			veff=0.0;
-		}
-		else {
-			veff = 1/gradient;
+		
+		// has the value been overridden?
+		double overrideVal = constants.get(DetectorDescriptor.generateHashCode(
+				sector, layer, paddle))[VEFF_OVERRIDE];
+
+		if (overrideVal != 0.0) {
+			veff = overrideVal;
+		} else {
+
+			double gradient = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParameter(1);
+			if (gradient==0.0) {
+				veff=0.0;
+			}
+			else {
+				veff = 1/gradient;
+			}
 		}
 		return veff;
 	}
 	
 	public Double getVeffError(int sector, int layer, int paddle){
 		
-		// Calculate the error
-		// fractional error in veff = fractional error in 1/veff
-		double gradient = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParameter(1);
-		double gradientError = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParError(1);
-		double veff = getVeff(sector, layer, paddle);
-		
 		double veffError = 0.0;
-		if (gradient==0.0) {
-			veffError = 0.0;
-		}
-		else {
-			veffError = (gradientError/gradient) * veff;
+		
+		// has the value been overridden?
+		double overrideUnc = constants.get(DetectorDescriptor.generateHashCode(
+				sector, layer, paddle))[VEFF_UNC_OVERRIDE];
+
+		if (overrideUnc != 0.0) {
+			veffError = overrideUnc;
+		} else {
+
+			// Calculate the error
+			// fractional error in veff = fractional error in 1/veff
+			double gradient = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParameter(1);
+			double gradientError = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getParError(1);
+			double veff = getVeff(sector, layer, paddle);
+			
+			if (gradient==0.0) {
+				veffError = 0.0;
+			}
+			else {
+				veffError = (gradientError/gradient) * veff;
+			}
 		}
 		
 		return veffError;
