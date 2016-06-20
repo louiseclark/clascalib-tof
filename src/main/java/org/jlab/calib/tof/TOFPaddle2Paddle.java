@@ -58,6 +58,7 @@ public class TOFPaddle2Paddle   implements IDetectorListener,IConstantsTableList
 	TreeMap<Integer,H1D> crudeLastHists = new TreeMap<Integer,H1D>();
 	TreeMap<Integer,H1D> crudeFirstAgainHists = new TreeMap<Integer,H1D>();
 	TreeMap<Integer,Double> offsets = new TreeMap<Integer,Double>();
+	TreeMap<Integer,Double> offsetOverrides = new TreeMap<Integer,Double>();
 		
 	public final double TARGET_CENTRE = -25.0;
 	public final double RF_STRUCTURE = 2.004;
@@ -83,16 +84,16 @@ public class TOFPaddle2Paddle   implements IDetectorListener,IConstantsTableList
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        //JButton buttonFit = new JButton("Fit");
-        //buttonFit.addActionListener(this);
-        
+		JButton buttonFit = new JButton("Adjust Fit / Override");
+		buttonFit.addActionListener(this);
+		
         JButton buttonViewAll = new JButton("View all");
         buttonViewAll.addActionListener(this);
                 
         JButton buttonWrite = new JButton("Write to file");
         buttonWrite.addActionListener(this);
         
-        //this.calibPane.getBottonPane().add(buttonFit);
+        this.calibPane.getBottonPane().add(buttonFit);
         this.calibPane.getBottonPane().add(buttonViewAll);
         this.calibPane.getBottonPane().add(buttonWrite);
 		
@@ -147,6 +148,9 @@ public class TOFPaddle2Paddle   implements IDetectorListener,IConstantsTableList
 						crudeLastHists.put(desc.getHashCode(), hist);
 						
 					}
+					
+					// initialize the overrides					
+					offsetOverrides.put(desc.getHashCode(), 0.0);
 					
 				}
 			}
@@ -207,7 +211,23 @@ public class TOFPaddle2Paddle   implements IDetectorListener,IConstantsTableList
     
     public void actionPerformed(ActionEvent e) {
 
-    	if (e.getActionCommand().compareTo("View all")==0){
+		if (e.getActionCommand().compareTo("Adjust Fit / Override") == 0) {
+
+			int sector = constantsTablePanel.getSelected().getSector();
+			int layer = constantsTablePanel.getSelected().getLayer();
+			int paddle = constantsTablePanel.getSelected().getComponent();
+
+			customFit(sector, layer, paddle);
+
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					0,
+					Double.parseDouble(new DecimalFormat("0.000").format(this
+							.getOffset(sector, layer, paddle))));
+
+			drawComponent(sector, layer, paddle, canvas);
+			calibPane.repaint();
+		}
+		else if (e.getActionCommand().compareTo("View all")==0){
 
         	int sector = constantsTablePanel.getSelected().getSector();
         	int layer = constantsTablePanel.getSelected().getLayer();
@@ -567,24 +587,35 @@ public class TOFPaddle2Paddle   implements IDetectorListener,IConstantsTableList
 		
 	}
 
+	private double toDouble(String stringVal) {
+
+		double doubleVal;
+		try {
+			doubleVal = Double.parseDouble(stringVal);
+		} catch (NumberFormatException e) {
+			doubleVal = 0.0;
+		}
+		return doubleVal;
+	}
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		H1D h = getH1D(sector, layer, paddle, "FINE");
-		F1D f = getFineFunc(sector, layer, paddle);        
-		
-		TOFCustomFitPanel panel = new TOFCustomFitPanel(null);
+		String[] fields = { "Override Offset:"};
+		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
-		int result = JOptionPane.showConfirmDialog(null, panel, 
-				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
+		int result = JOptionPane
+				.showConfirmDialog(null, panel, "Override for paddle "
+						+ paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
-			//double minRange = Double.parseDouble(panel.minRange.getText());
-			//double maxRange = Double.parseDouble(panel.maxRange.getText());
+			double overrideOffset = toDouble(panel.textFields[0].getText());
 
-			//fitGeoMean(sector, layer, paddle, minRange, maxRange);
+			// put the constants in the treemap
+			DetectorDescriptor desc = new DetectorDescriptor();
+			desc.setSectorLayerComponent(sector, layer, paddle);
+			offsetOverrides.put(desc.getHashCode(), overrideOffset);
 
-		}	 
+		}
 	}
 	
 	public H1D getH1D(int sector, int layer, int paddle, String histType){
@@ -611,7 +642,18 @@ public class TOFPaddle2Paddle   implements IDetectorListener,IConstantsTableList
 
 	public Double getOffset(int sector, int layer, int paddle) {
 		
-		return this.offsets.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
+		double offset = 0.0;
+		
+		// has the value been overridden?
+		double overrideVal = offsetOverrides.get(DetectorDescriptor.generateHashCode(
+				sector, layer, paddle));
+
+		if (overrideVal != 0.0) {
+			offset = overrideVal;
+		} else {
+			offset = offsets.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
+		}
+		return offset;
 	}
 			
 	public void fillTable(int sector, int layer, final ConstantsTable table) {

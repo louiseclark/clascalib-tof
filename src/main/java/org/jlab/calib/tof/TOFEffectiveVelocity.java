@@ -93,7 +93,7 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        JButton buttonFit = new JButton("Fit");
+        JButton buttonFit = new JButton("Adjust Fit / Override");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");
@@ -189,7 +189,7 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
     
     public void actionPerformed(ActionEvent e) {
 
-    	if(e.getActionCommand().compareTo("Fit")==0){
+    	if(e.getActionCommand().compareTo("Adjust Fit / Override")==0){
         	
         	int sector = constantsTablePanel.getSelected().getSector();
         	int layer = constantsTablePanel.getSelected().getLayer();
@@ -355,13 +355,13 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		String[] fields = { "Min range", "Max range",
-				"Override effective velocity", "Override unc"};
+		String[] fields = { "Min range for fit:", "Max range for fit:",
+				"Override Effective Velocity:", "Override Effective Velocity uncertainty:"};
 				
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
 		int result = JOptionPane.showConfirmDialog(null, panel, 
-				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
+				"Adjust Fit / Override for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
 			double minRange = toDouble(panel.textFields[0].getText());

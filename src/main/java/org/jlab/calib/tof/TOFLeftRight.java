@@ -53,6 +53,10 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
 		
 	TreeMap<Integer,H1D> container = new TreeMap<Integer,H1D>();
 	TreeMap<Integer,F1D> functions = new TreeMap<Integer,F1D>();
+	TreeMap<Integer, Double[]> constants = new TreeMap<Integer, Double[]>();
+
+	// constants for indexing the constants array
+	public final int LR_OVERRIDE = 0;
 	
 	final double LEFT_RIGHT_RATIO = 0.3;
 	
@@ -89,7 +93,7 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        JButton buttonFit = new JButton("Fit");
+        JButton buttonFit = new JButton("Adjust Fit / Override");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");
@@ -113,6 +117,10 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
 					H1D hist = new H1D("Left Right Sector "+sector+" Paddle "+paddle,"Left Right Sector "+sector+" Paddle "+paddle, 
 							200, -960.0, 960.0);
 					container.put(desc.getHashCode(), hist);
+					
+					// initialize the treemap of constants array
+					Double[] consts = { 0.0 };
+					constants.put(desc.getHashCode(), consts);
 				}
 			}
 		}
@@ -162,20 +170,16 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
     
     public void actionPerformed(ActionEvent e) {
 
-    	if(e.getActionCommand().compareTo("Fit")==0){
+    	if(e.getActionCommand().compareTo("Adjust Fit / Override")==0){
         	
         	int sector = constantsTablePanel.getSelected().getSector();
         	int layer = constantsTablePanel.getSelected().getLayer();
         	int paddle = constantsTablePanel.getSelected().getComponent();
 	    	
         	customFit(sector, layer, paddle);
-	    	F1D f = getF1D(sector, layer, paddle);
 	    	
-//	    	constantsTable.getEntry(sector, layer, paddle).setData(0, 
-//	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getVeff(sector, layer, paddle))));
-//	    	constantsTable.getEntry(sector, layer, paddle).setData(1, 
-//	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getVeffError(sector, layer, paddle))));
-//			//constantsTable.fireTableDataChanged();
+	    	constantsTable.getEntry(sector, layer, paddle).setData(0, 
+	    			Double.parseDouble(new DecimalFormat("0.000").format(this.getCentroid(sector, layer, paddle))));
 			
 			drawComponent(sector, layer, paddle, canvas);
 			calibPane.repaint();
@@ -340,22 +344,35 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
 		
 	}
 
+	private double toDouble(String stringVal) {
+
+		double doubleVal;
+		try {
+			doubleVal = Double.parseDouble(stringVal);
+		} catch (NumberFormatException e) {
+			doubleVal = 0.0;
+		}
+		return doubleVal;
+	}
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		H1D h = getH1D(sector, layer, paddle);
-		F1D f = getF1D(sector, layer, paddle);        
-		
-		TOFCustomFitPanel panel = new TOFCustomFitPanel(null);
+		String[] fields = { "Override centroid:" };
+		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
 		int result = JOptionPane.showConfirmDialog(null, panel, 
-				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
+				"Override value for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
-			//double minRange = Double.parseDouble(panel.minRange.getText());
-			//double maxRange = Double.parseDouble(panel.maxRange.getText());
+			double overrideValue = toDouble(panel.textFields[0].getText());
+			
+			// put the constants in the treemap
+			Double[] consts = getConst(sector, layer, paddle);
+			consts[LR_OVERRIDE] = overrideValue;
 
-			//fitGeoMean(sector, layer, paddle, minRange, maxRange);
+			DetectorDescriptor desc = new DetectorDescriptor();
+			desc.setSectorLayerComponent(sector, layer, paddle);
+			constants.put(desc.getHashCode(), consts);
 
 		}	 
 	}
@@ -367,11 +384,29 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
 	public F1D getF1D(int sector, int layer, int paddle){
 		return this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}
+	
+	public Double[] getConst(int sector, int layer, int paddle) {
+		return this.constants.get(DetectorDescriptor.generateHashCode(sector,
+				layer, paddle));
+	}	
 
 	public Double getCentroid(int sector, int layer, int paddle) {
-		double min = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getMin();
-		double max = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getMax();
-		double leftRight = (min+max)/2.0;
+		
+		double leftRight = 0.0;
+		
+		// has the value been overridden?
+		double overrideVal = constants.get(DetectorDescriptor.generateHashCode(
+				sector, layer, paddle))[LR_OVERRIDE];
+
+		if (overrideVal != 0.0) {
+			leftRight = overrideVal;
+		} else {
+
+			double min = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getMin();
+			double max = this.functions.get(DetectorDescriptor.generateHashCode(sector, layer, paddle)).getMax();
+			leftRight = (min+max)/2.0;
+		}
+		
 		return leftRight;
 	}
 	

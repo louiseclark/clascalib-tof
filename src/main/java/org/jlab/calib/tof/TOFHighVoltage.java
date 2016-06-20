@@ -113,7 +113,7 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
         
-        JButton buttonFit = new JButton("Fit");
+        JButton buttonFit = new JButton("Adjust Fit / Override");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");
@@ -146,6 +146,10 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 											GM_HIST_BINS[layer_index], 0.0, GM_HIST_MAX[layer_index]),
 								   new TOFH1D("Log Ratio Sector "+sector+" Paddle "+paddle,"Log Ratio Sector "+sector+" Paddle "+paddle, 75,-6.0,6.0)};
 					container.put(desc.getHashCode(), hists);
+					
+					// initialize the treemap of constants array
+					Double[] consts = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+					constants.put(desc.getHashCode(), consts);
 				}
 			}
 		}
@@ -197,7 +201,7 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 
     public void actionPerformed(ActionEvent e) {
         
-    	if(e.getActionCommand().compareTo("Fit")==0){
+    	if(e.getActionCommand().compareTo("Adjust Fit / Override")==0){
         	
         	int sector = constantsTablePanel.getSelected().getSector();
         	int layer = constantsTablePanel.getSelected().getLayer();
@@ -209,6 +213,11 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 	    			Math.round(getMipChannel(sector, layer, paddle)));
 	    	constantsTable.getEntry(sector, layer, paddle).setData(1, 
 	    			Double.parseDouble(new DecimalFormat("0.0").format(getMipChannelUnc(sector, layer, paddle))));
+	    	constantsTable.getEntry(sector, layer, paddle).setData(2, 
+					Double.parseDouble(new DecimalFormat("0.000").format(getLogRatio(sector, layer, paddle))));
+	    	constantsTable.getEntry(sector, layer, paddle).setData(3, 
+					Double.parseDouble(new DecimalFormat("0.000").format(getLogRatioUnc(sector, layer, paddle))));
+	    	
 			//constantsTable.fireTableDataChanged();
 			
 			drawComponent(sector, layer, paddle, canvas);
@@ -502,8 +511,9 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 		functions.put(desc.getHashCode(), funcs);
 		
 		// put the constants in the treemap
-		Double[] consts = {logRatioMean, logRatioError, 
-						   0.0, 0.0, 0.0, 0.0};
+		Double[] consts = getConst(sector, layer, paddle);
+		consts[LR_CENTROID] = logRatioMean;
+		consts[LR_ERROR] = logRatioError;
 		constants.put(desc.getHashCode(), consts);
 
 	}
@@ -599,23 +609,29 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		String[] fields = {"Min range", "Max range", "Override MIP channel", "Override MIP channel uncertainty"};
+		String[] fields = {"Min range for geometric mean fit:", "Max range for geometric mean fit:", 
+						   "Override MIP channel:", "Override MIP channel uncertainty:",
+						   "Override Log ratio:", "Override Log ratio uncertainty:"};
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
 		int result = JOptionPane.showConfirmDialog(null, panel, 
-				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
+				"Adjust Fit / Override for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
 			double minRange = toDouble(panel.textFields[0].getText());
 			double maxRange = toDouble(panel.textFields[1].getText());
-			double overrideValue = toDouble(panel.textFields[2].getText());
-			double overrideUnc = toDouble(panel.textFields[3].getText());			
+			double overrideGM = toDouble(panel.textFields[2].getText());
+			double overrideGMUnc = toDouble(panel.textFields[3].getText());			
+			double overrideLR = toDouble(panel.textFields[4].getText());
+			double overrideLRUnc = toDouble(panel.textFields[5].getText());			
 			
 			
 			// put the constants in the treemap
 			Double[] consts = getConst(sector, layer, paddle);
-			consts[GEOMEAN_OVERRIDE] = overrideValue;
-			consts[GEOMEAN_UNC_OVERRIDE] = overrideUnc;
+			consts[GEOMEAN_OVERRIDE] = overrideGM;
+			consts[GEOMEAN_UNC_OVERRIDE] = overrideGMUnc;
+			consts[LOGRATIO_OVERRIDE] = overrideLR;
+			consts[LOGRATIO_UNC_OVERRIDE] = overrideLRUnc;
 
 			DetectorDescriptor desc = new DetectorDescriptor();
 			desc.setSectorLayerComponent(sector, layer, paddle);
@@ -646,7 +662,8 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 			mipChannel = overrideVal;
 		}
 		else {
-			mipChannel = getCalibrationValue(sector, layer, paddle, GEOMEAN, 1);
+			F1D f = getF1D(sector, layer, paddle)[GEOMEAN];
+			mipChannel = f.getParameter(1);
 		}
 				
 		return mipChannel;
@@ -664,25 +681,46 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 		else {
 			F1D f = getF1D(sector, layer, paddle)[GEOMEAN];
 			mipChannelUnc = f.parameter(1).error();
+			if (Double.isInfinite(mipChannelUnc)){
+				mipChannelUnc = 9999.0;
+			}
 		}
 				
 		return mipChannelUnc;
 	}	
 	
-	public double getCalibrationValue(int sector, int layer, int paddle, int funcNum, int param) {
+	public double getLogRatio(int sector, int layer, int paddle) {
 		
-		double calibVal;
-		DetectorDescriptor desc = new DetectorDescriptor();
-		desc.setSectorLayerComponent(sector, layer, paddle);
-		F1D func;
-		try {
-			func = functions.get(desc.getHashCode())[funcNum];
-			calibVal = func.getParameter(param);
-		} catch (NullPointerException e) {
-			calibVal = 0.0;
+		double logRatio = 0.0;
+		// has the value been overridden?
+		double overrideVal = constants.get(DetectorDescriptor.generateHashCode(sector, layer, paddle))[LOGRATIO_OVERRIDE];
+		
+		if (overrideVal != 0.0) {
+			logRatio = overrideVal;
 		}
-		return calibVal;
+		else {
+			logRatio = getConst(sector, layer, paddle)[LR_CENTROID];
+		}
+				
+		return logRatio;
+
 	}
+	
+	public double getLogRatioUnc(int sector, int layer, int paddle) {
+		
+		double logRatioUnc = 0.0;
+		// has the value been overridden?
+		double overrideUnc = constants.get(DetectorDescriptor.generateHashCode(sector, layer, paddle))[LOGRATIO_UNC_OVERRIDE];
+		
+		if (overrideUnc != 0.0) {
+			logRatioUnc = overrideUnc;
+		}
+		else {
+			logRatioUnc = getConst(sector, layer, paddle)[LR_ERROR];
+		}
+				
+		return logRatioUnc;
+	}	
 	
 	public void fillTable(int sector, int layer, final ConstantsTable table) {
 		
@@ -690,29 +728,15 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 		int layer_index = layer-1;
 		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++) {
 			
-			F1D f = getF1D(sector, layer, paddle)[GEOMEAN];
-			Double lrCentroid = getConst(sector, layer, paddle)[LR_CENTROID];
-			Double lrError = getConst(sector, layer, paddle)[LR_ERROR];
-			Double gmError = f.parameter(1).error();
 			table.addEntry(sector, layer, paddle);
-			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0.0").format(f.getParameter(1))));
-			if (!Double.isInfinite(gmError)){
-				try {
-					table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(gmError)));
-				} catch (NumberFormatException e){
-					table.getEntry(sector, layer, paddle).setData(1, 9999.0);
-				}
-			}
-			else {
-				table.getEntry(sector, layer, paddle).setData(1, 9999.0);
-			}
-			table.getEntry(sector, layer, paddle).setData(2, Double.parseDouble(new DecimalFormat("0.000").format(lrCentroid)));
-			if (!Double.isInfinite(lrError)) {
-				table.getEntry(sector, layer, paddle).setData(3, Double.parseDouble(new DecimalFormat("0.000").format(lrError)));
-			}
-			else {
-				table.getEntry(sector, layer, paddle).setData(3, 9999.0);
-			}
+			table.getEntry(sector, layer, paddle).setData(0, 
+					Double.parseDouble(new DecimalFormat("0.0").format(getMipChannel(sector, layer, paddle))));
+			table.getEntry(sector, layer, paddle).setData(1, 
+					Double.parseDouble(new DecimalFormat("0.0").format(getMipChannelUnc(sector, layer, paddle))));
+			table.getEntry(sector, layer, paddle).setData(2, 
+					Double.parseDouble(new DecimalFormat("0.000").format(getLogRatio(sector, layer, paddle))));
+			table.getEntry(sector, layer, paddle).setData(3, 
+					Double.parseDouble(new DecimalFormat("0.000").format(getLogRatioUnc(sector, layer, paddle))));
 
 		}
 	}

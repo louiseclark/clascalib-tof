@@ -21,11 +21,6 @@ import org.root.histogram.H1D;
  * @author gavalian
  */
 public class TOFCustomFitPanel extends JPanel {
-
-//	JTextField minRange = new JTextField(5);
-//	JTextField maxRange = new JTextField(5);
-//	JTextField overrideValue = new JTextField(5);
-//	JTextField overrideUnc = new JTextField(5);
 	
 	JTextField[] textFields;
 	
@@ -34,7 +29,7 @@ public class TOFCustomFitPanel extends JPanel {
 		JTextField[] newTextFields = new JTextField[fields.length];
 		textFields = newTextFields;
 		
-		this.setLayout(new GridLayout(7,2));
+		this.setLayout(new GridLayout(fields.length,2));
 		
 		// Initialize the text fields
 		for (int i=0; i< fields.length; i++) { 
@@ -48,28 +43,7 @@ public class TOFCustomFitPanel extends JPanel {
 			this.add(textFields[i]);
 			
 		}
-		
-		// Create fields for function range
-//		this.add(new JLabel("Function range"));
-//		this.add(new JLabel(""));
-//		
-//		this.add(Box.createHorizontalStrut(15)); // a spacer
-//		this.add(Box.createHorizontalStrut(15)); // a spacer
-//		
-//		this.add(new JLabel("Minimum:"));
-//		this.add(minRange);
-//		this.add(new JLabel("Maximum:"));
-//		this.add(maxRange);
-//		
-//		this.add(Box.createHorizontalStrut(15)); // a spacer
-//		this.add(Box.createHorizontalStrut(15)); // a spacer
-//
-//		this.add(new JLabel("Override value:"));
-//		this.add(overrideValue);
-//		this.add(new JLabel("Override uncertainty:"));
-//		this.add(overrideUnc);
-
-		
+				
 	}
 	
 }

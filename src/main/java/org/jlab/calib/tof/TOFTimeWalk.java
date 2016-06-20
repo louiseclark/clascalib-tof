@@ -58,10 +58,17 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 	TreeMap<Integer,F1D[]> functions = new TreeMap<Integer,F1D[]>();
 	TreeMap<Integer,Double[]> constants = new TreeMap<Integer,Double[]>();
 	
-	// constants for indexing the histogram and constant arrays
+	// constants for indexing the histograms
 	public final int LEFT = 0;
 	public final int RIGHT = 1;
 
+	// constants for indexing the constant arrays
+	public final int LAMBDA_LEFT_OVERRIDE = 0;
+	public final int ORDER_LEFT_OVERRIDE = 1;
+	public final int LAMBDA_RIGHT_OVERRIDE = 2;
+	public final int ORDER_RIGHT_OVERRIDE = 3;
+
+	
 	// the number of cycles of corrections
 	private final int			NUM_ITERATIONS = 5;
 	
@@ -129,7 +136,7 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
         this.constantsTablePanel.addListener(this);        
         this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-        JButton buttonFit = new JButton("Fit TW");
+        JButton buttonFit = new JButton("Adjust Fit / Override");
         buttonFit.addActionListener(this);
         
         JButton buttonViewAll = new JButton("View all");
@@ -164,6 +171,10 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 							100, 0.0, 2000.0,
 							100, -10.0, 10.0)};
 					container.put(desc.getHashCode(), hists);
+					
+					// initialize the treemap of constants array
+					Double[] consts = { 0.0, 0.0, 0.0, 0.0};
+					constants.put(desc.getHashCode(), consts);
 				}
 			}
 		}
@@ -212,19 +223,31 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
     }
     
     public void actionPerformed(ActionEvent e) {
-        System.out.println("ACTION PERFORMED : " + e.getActionCommand());
-        if(e.getActionCommand().compareTo("Fit")==0){
+
+    	if(e.getActionCommand().compareTo("Adjust Fit / Override")==0){
         	
         	int sector = constantsTablePanel.getSelected().getSector();
         	int layer = constantsTablePanel.getSelected().getLayer();
         	int paddle = constantsTablePanel.getSelected().getComponent();
 	    	
         	customFit(sector, layer, paddle);
-	    	F1D f = getF1D(sector, layer, paddle)[0];
 	    	
-	    	constantsTable.getEntry(sector, layer, paddle).setData(0, Math.round(f.getParameter(1)));
-	    	constantsTable.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(f.parameter(1).error())));
-			//constantsTable.fireTableDataChanged();
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					0,
+					Double.parseDouble(new DecimalFormat("0.0").format(this
+							.getLambdaLeft(sector, layer, paddle))));
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					1,
+					Double.parseDouble(new DecimalFormat("0.0").format(this
+							.getOrderLeft(sector, layer, paddle))));
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					2,
+					Double.parseDouble(new DecimalFormat("0.0").format(this
+							.getLambdaRight(sector, layer, paddle))));
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					3,
+					Double.parseDouble(new DecimalFormat("0.0").format(this
+							.getOrderRight(sector, layer, paddle))));
 			
 			drawComponent(sector, layer, paddle, canvas);
 			calibPane.repaint();
@@ -364,22 +387,43 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		
 	}
 
+	private double toDouble(String stringVal) {
+
+		double doubleVal;
+		try {
+			doubleVal = Double.parseDouble(stringVal);
+		} catch (NumberFormatException e) {
+			doubleVal = 0.0;
+		}
+		return doubleVal;
+	}
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		H2D h = getH2D(sector, layer, paddle)[LEFT];
-		F1D f = getF1D(sector, layer, paddle)[LEFT];        
-		
-		TOFCustomFitPanel panel = new TOFCustomFitPanel(null);
+		String[] fields = { "Override Lambda Left:", "Override Order Left:",
+							"Override Lambda Right:", "Override Order Right:"};
+		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
-		int result = JOptionPane.showConfirmDialog(null, panel, 
-				"Adjust Fit for paddle "+paddle, JOptionPane.OK_CANCEL_OPTION);
+		int result = JOptionPane
+				.showConfirmDialog(null, panel, "Override values for paddle "
+						+ paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
-			//double minRange = Double.parseDouble(panel.minRange.getText());
-			//double maxRange = Double.parseDouble(panel.maxRange.getText());
+			double overrideLL = toDouble(panel.textFields[0].getText());
+			double overrideOL = toDouble(panel.textFields[1].getText());
+			double overrideLR = toDouble(panel.textFields[2].getText());
+			double overrideOR = toDouble(panel.textFields[3].getText());
 
-			//fitGeoMean(sector, layer, paddle, minRange, maxRange);
+			// put the constants in the treemap
+			Double[] consts = getConst(sector, layer, paddle);
+			consts[LAMBDA_LEFT_OVERRIDE] = overrideLL;
+			consts[ORDER_LEFT_OVERRIDE] = overrideOL;
+			consts[LAMBDA_RIGHT_OVERRIDE] = overrideLR;
+			consts[ORDER_RIGHT_OVERRIDE] = overrideOR;
+			
+			DetectorDescriptor desc = new DetectorDescriptor();
+			desc.setSectorLayerComponent(sector, layer, paddle);
+			constants.put(desc.getHashCode(), consts);
 
 		}	 
 	}
@@ -394,44 +438,105 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 		return this.constants.get(DetectorDescriptor.generateHashCode(sector, layer, paddle));
 	}	
 		
-	public double getCalibrationValue(int sector, int layer, int paddle, int funcNum, int param) {
-		
-		double calibVal;
-		DetectorDescriptor desc = new DetectorDescriptor();
-		desc.setSectorLayerComponent(sector, layer, paddle);
-		F1D func;
-		try {
-			func = functions.get(desc.getHashCode())[funcNum];
-			calibVal = func.getParameter(param);
-		} catch (NullPointerException e) {
-			calibVal = 0.0;
+	public Double getLambdaLeft(int sector, int layer, int paddle) {
+
+		double ll = 0.0;
+
+		// has the value been overridden?
+		double overrideVal = constants.get(DetectorDescriptor.generateHashCode(
+				sector, layer, paddle))[LAMBDA_LEFT_OVERRIDE];
+
+		if (overrideVal != 0.0) {
+			ll = overrideVal;
+		} else {
+			
+//			ll = functions.get(
+//					DetectorDescriptor.generateHashCode(sector, layer, paddle))[LEFT]
+//					.getParameter(0);
 		}
-		return calibVal;
-	}
+
+		return ll;
+	}	
+
+	public Double getOrderLeft(int sector, int layer, int paddle) {
+
+		double ol = 0.0;
+
+		// has the value been overridden?
+		double overrideVal = constants.get(DetectorDescriptor.generateHashCode(
+				sector, layer, paddle))[ORDER_LEFT_OVERRIDE];
+
+		if (overrideVal != 0.0) {
+			ol = overrideVal;
+		} else {
+//			ol = functions.get(
+//					DetectorDescriptor.generateHashCode(sector, layer, paddle))[LEFT]
+//					.getParameter(1);
+		}
+
+		return ol;
+	}	
+		
+	public Double getLambdaRight(int sector, int layer, int paddle) {
+
+		double lr = 0.0;
+
+		// has the value been overridden?
+		double overrideVal = constants.get(DetectorDescriptor.generateHashCode(
+				sector, layer, paddle))[LAMBDA_RIGHT_OVERRIDE];
+
+		if (overrideVal != 0.0) {
+			lr = overrideVal;
+		} else {
+//			lr = functions.get(
+//					DetectorDescriptor.generateHashCode(sector, layer, paddle))[RIGHT]
+//					.getParameter(0);
+		}
+
+		return lr;
+	}	
+
+	public Double getOrderRight(int sector, int layer, int paddle) {
+
+		double or = 0.0;
+
+		// has the value been overridden?
+		double overrideVal = constants.get(DetectorDescriptor.generateHashCode(
+				sector, layer, paddle))[ORDER_RIGHT_OVERRIDE];
+
+		if (overrideVal != 0.0) {
+			or = overrideVal;
+		} else {
+//			or = functions.get(
+//					DetectorDescriptor.generateHashCode(sector, layer, paddle))[RIGHT]
+//					.getParameter(1);
+		}
+
+		return or;
+	}	
 	
 	public void fillTable(int sector, int layer, final ConstantsTable table) {
-		
 		
 		int layer_index = layer-1;
 		for (int paddle=1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++) {
 			
-			//F1D f = getF1D(sector, layer, paddle)[LEFT];
-//			Double lrCentroid = getConst(sector, layer, paddle)[LR_CENTROID];
 			table.addEntry(sector, layer, paddle);
-//			table.getEntry(sector, layer, paddle).setData(0, Double.parseDouble(new DecimalFormat("0.0").format(f.getParameter(1))));
-//			if (Double.isFinite(gmError)){
-//				table.getEntry(sector, layer, paddle).setData(1, Double.parseDouble(new DecimalFormat("0.0").format(gmError)));
-//			}
-//			else {
-//				table.getEntry(sector, layer, paddle).setData(1, 9999.0);
-//			}
-//			table.getEntry(sector, layer, paddle).setData(2, Double.parseDouble(new DecimalFormat("0.000").format(lrCentroid)));
-//			if (Double.isFinite(lrError)) {
-//				table.getEntry(sector, layer, paddle).setData(3, Double.parseDouble(new DecimalFormat("0.000").format(lrError)));
-//			}
-//			else {
-//				table.getEntry(sector, layer, paddle).setData(3, 9999.0);
-//			}
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					0,
+					Double.parseDouble(new DecimalFormat("0.0").format(this
+							.getLambdaLeft(sector, layer, paddle))));
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					1,
+					Double.parseDouble(new DecimalFormat("0.0").format(this
+							.getOrderLeft(sector, layer, paddle))));
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					2,
+					Double.parseDouble(new DecimalFormat("0.0").format(this
+							.getLambdaRight(sector, layer, paddle))));
+			constantsTable.getEntry(sector, layer, paddle).setData(
+					3,
+					Double.parseDouble(new DecimalFormat("0.0").format(this
+							.getOrderRight(sector, layer, paddle))));
 
 		}
 	}

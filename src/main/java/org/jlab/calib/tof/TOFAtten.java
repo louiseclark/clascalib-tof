@@ -95,7 +95,7 @@ public class TOFAtten implements IDetectorListener, IConstantsTableListener,
 		this.constantsTablePanel.addListener(this);
 		this.calibPane.getTablePane().add(this.constantsTablePanel);
 
-		JButton buttonFit = new JButton("Fit");
+		JButton buttonFit = new JButton("Adjust Fit / Override");
 		buttonFit.addActionListener(this);
 
 		JButton buttonViewAll = new JButton("View all");
@@ -174,7 +174,7 @@ public class TOFAtten implements IDetectorListener, IConstantsTableListener,
 
 	public void actionPerformed(ActionEvent e) {
 
-		if (e.getActionCommand().compareTo("Fit") == 0) {
+		if (e.getActionCommand().compareTo("Adjust Fit / Override") == 0) {
 
 			int sector = constantsTablePanel.getSelected().getSector();
 			int layer = constantsTablePanel.getSelected().getLayer();
@@ -432,13 +432,13 @@ public class TOFAtten implements IDetectorListener, IConstantsTableListener,
 
 	public void customFit(int sector, int layer, int paddle) {
 
-		String[] fields = { "Min range", "Max range",
-				"Override attenuation length", "Override unc",
-				"Override offset" };
+		String[] fields = { "Min range for fit:", "Max range for fit:",
+				"Override Attenuation Length:", "Override Attenuation Length uncertainty:",
+				"Override offset:" };
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
 		int result = JOptionPane
-				.showConfirmDialog(null, panel, "Adjust Fit for paddle "
+				.showConfirmDialog(null, panel, "Adjust Fit / Override for paddle "
 						+ paddle, JOptionPane.OK_CANCEL_OPTION);
 		if (result == JOptionPane.OK_OPTION) {
 
