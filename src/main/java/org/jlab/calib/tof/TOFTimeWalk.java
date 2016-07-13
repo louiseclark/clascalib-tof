@@ -67,6 +67,8 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 	public final int ORDER_LEFT_OVERRIDE = 1;
 	public final int LAMBDA_RIGHT_OVERRIDE = 2;
 	public final int ORDER_RIGHT_OVERRIDE = 3;
+	
+	private final double[]		ADC_MAX = {0.0,4000.0,8000.0,3000.0};
 
 	
 	// the number of cycles of corrections
@@ -162,17 +164,17 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 							" Paddle "+desc.getComponent(),
 							"Time residual vs ADC LEFT Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
-							100, 0.0, 2000.0,
+							100, 0.0, ADC_MAX[layer],
 							100, -10.0, 10.0),
 					new H2D("Time residual vs ADC RIGHT Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
 							"Time residual vs ADC RIGHT Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
-							100, 0.0, 2000.0,
+							100, 0.0, ADC_MAX[layer],
 							100, -10.0, 10.0)};
 					container.put(desc.getHashCode(), hists);
 					
-					// initialize the treemap of constants array
+					// initialize the treemap of constant arrays
 					Double[] consts = { 0.0, 0.0, 0.0, 0.0};
 					constants.put(desc.getHashCode(), consts);
 				}
@@ -295,8 +297,10 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
     
     public void analyze(){
     	
+    	System.out.println("TW before processEvents");
     	// fill the time residual vs ADC histograms
     	processEvents();
+    	System.out.println("TW after processEvents");    	
     	
 		for(int sector = 1; sector <= 6; sector++){
 		//for(int sector = 2; sector <= 2; sector++){
@@ -304,10 +308,11 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 			//for (int layer = 1; layer <= 2; layer++) {
 				int layer_index = layer-1;
 				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
-					fitTimeWalk(sector, layer, paddle);
+					//fitTimeWalk(sector, layer, paddle);
 				}
 			}
 		}
+		System.out.println("TW after fit");
 	}
 	
 	public void fitTimeWalk(int sector, int layer, int paddle) {
@@ -353,9 +358,9 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 //			trFunc.setParameters(initParams);
 //			meanGraph.fit(trFunc);
 //			c2.draw(trFunc,"same");
-			
-			//System.out.println("New lambda is "+trFunc.getParameter(1));
-			//System.out.println("New order is "+trFunc.getParameter(2));
+//			
+//			System.out.println("New lambda is "+trFunc.getParameter(1));
+//			System.out.println("New order is "+trFunc.getParameter(2));
 		}
 	}
 	
@@ -400,7 +405,7 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		String[] fields = { "Override Lambda Left:", "Override Order Left:",
+		String[] fields = { "Override Lambda Left:", "Override Order Left:", "SPACE",
 							"Override Lambda Right:", "Override Order Right:"};
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
@@ -635,8 +640,8 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 			fitHist.setTitle("Paddle "+paddleNum);
 			fitCanvases[canvasNum].draw(fitHist);
 			
-			F1D fitFunc = getF1D(sector, layer, paddleNum)[plotType];
-			fitCanvases[canvasNum].draw(fitFunc, "same");
+			//F1D fitFunc = getF1D(sector, layer, paddleNum)[plotType];
+			//fitCanvases[canvasNum].draw(fitFunc, "same");
 			
     		padNum = padNum+1;
     		

@@ -78,6 +78,10 @@ public class TOFPaddle {
     	return Math.log((double)ADCR/(double)ADCL);
     }
     
+    public boolean isValidGeoMean() {
+    	return (this.geometricMean() > 300.0);
+    }
+    
     public boolean isValidLogRatio() {
     	// only if geometric mean is over a minimum
 		// only if both TDCs are non-zero - otherwise ADCs are equal and log ratio is always 0
@@ -91,7 +95,7 @@ public class TOFPaddle {
     	// hard coded for s1p10
     	// set cutx and findrange functions in c++
     	int paddle = this.getDescriptor().getComponent() -1;
-    	float x = this.XPOS;
+    	double x = this.XPOS;
     	return !(paddle<24 && x>62.8+13.787*paddle-5 && x<62.8+13.787*paddle+5)
     			//&& (this.ADCL- getPedestalL() > 0.1 && this.ADCR - getPedestalR() > 0.1)
     			&& (this.ADCL > 0.1 && this.ADCR > 0.1)
@@ -127,8 +131,10 @@ public class TOFPaddle {
 	public double[] timeResiduals(double[] lambda, double[] order) {
 		double[] tr = {0.0, 0.0};
 		
-		double timeL = getTWTimeL();
-		double timeR = getTWTimeR();
+		double timeL = tdcToTime(TDCL);
+		double timeR = tdcToTime(TDCR);
+		//double timeL = getTWTimeL();
+		//double timeR = getTWTimeR();
 		
 		timeL = timeL - veffOffset();
 		timeR = timeR + veffOffset();
@@ -182,12 +188,20 @@ public class TOFPaddle {
     }	
     
     
-    double halfTimeDiff() {
+    double clas6HalfTimeDiff() {
     	
     	double timeL = getTWTimeL();
     	double timeR = getTWTimeR();
     	return (timeL-timeR)/2;
     }
+
+    double halfTimeDiff() {
+    	
+    	double timeL = tdcToTime(TDCL);
+    	double timeR = tdcToTime(TDCR);
+    	return (timeL-timeR)/2;
+    }
+    
     
     public double position() {
 		double vEff = 16; // default effective velocity to 16cm/ns

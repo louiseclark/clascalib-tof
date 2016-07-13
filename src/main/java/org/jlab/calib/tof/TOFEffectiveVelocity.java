@@ -71,9 +71,9 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 			if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
 
 				// fill (Time Left - Time Right / 2) vs position
-				if (paddle.includeInTimeWalk()) {
+				//if (paddle.isValidGeoMean()) {
 					this.container.get(paddle.getDescriptor().getHashCode()).fill(paddle.YPOS, paddle.halfTimeDiff());
-				}
+				//}
 
 			} else {
 				System.out.println("Cant find : " + paddle.getDescriptor().toString() );
@@ -119,12 +119,19 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 							" Paddle "+desc.getComponent(),
 							"Time Diff/2 vs Position - Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
-							100, lowY(paddle), highY(paddle), 
+							//100, lowY(paddle), highY(paddle), 
+							100, -210.0, 210.0,
 							200, -10.0, 10.0);
+					
+					hist.setTitle("Half Time Diff vs Position : " + TOFCalibration.LAYER_NAME[layer_index] 
+							+ " Sector "+sector+" Paddle "+paddle);
+					hist.setXTitle("Position (cm)");
+					hist.setYTitle("Half Time Diff (ns)");
+					
 					container.put(desc.getHashCode(), hist);
 
 					// initialize the treemap of constants array
-					Double[] consts = { 0.0, 0.0};
+					Double[] consts = {0.0, 0.0};
 					constants.put(desc.getHashCode(), consts);
 
 				}
@@ -281,19 +288,28 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 			int lowIndex = 20;
 			int highIndex = 80;
 			int graphMaxIndex = meanGraph.getDataSize(0)-1;
-	
+			
+			// get the position with max entries
+			int maxCounts = 0;
 			int centreIndex = meanGraph.getDataSize(0)/2;
-	
+			int maxIndex = 0;
+			for (int i=3; i<meanGraph.getDataSize(0)-3; i++) {
+				if (veffHist.getSlicesX().get(i).getEntries() > maxCounts) {
+					maxIndex = i;
+					maxCounts = veffHist.getSlicesX().get(i).getEntries(); 
+				}
+			}
+			
 			for (int pos=centreIndex; pos < graphMaxIndex; pos++) {
 				
-			    if(meanGraph.getDataY(pos) < meanGraph.getDataY(pos-1)){
+			    if(veffHist.getSlicesX().get(pos).getEntries() < 0.2*maxCounts){
 				      highIndex = pos-2;
 				      break;
 			    }
 			}
 			
 			for (int pos=centreIndex; pos>=1; pos--) {
-			    if(meanGraph.getDataY(pos) > meanGraph.getDataY(pos+1)){
+			    if(veffHist.getSlicesX().get(pos).getEntries() < 0.2*maxCounts){
 				      lowIndex = pos+2;
 				      break;
 			    }
@@ -355,7 +371,7 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		String[] fields = { "Min range for fit:", "Max range for fit:",
+		String[] fields = { "Min range for fit:", "Max range for fit:", "SPACE",
 				"Override Effective Velocity:", "Override Effective Velocity uncertainty:"};
 				
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);

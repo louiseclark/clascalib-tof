@@ -87,9 +87,9 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 			if(this.container.containsKey(paddle.getDescriptor().getHashCode())==true){
 				
 				// fill Geometric Mean
-				this.container.get(paddle.getDescriptor().getHashCode())[GEOMEAN].fill(paddle.geometricMean());
-				//this.container.get(paddle.getDescriptor().getHashCode())[GEOMEAN].fill(paddle.ADCL);
-				
+				//if (paddle.isValidGeoMean()) {
+					this.container.get(paddle.getDescriptor().getHashCode())[GEOMEAN].fill(paddle.geometricMean());
+				//}
 				// fill Log Ratio
 				if (paddle.isValidLogRatio()) {
 					this.container.get(paddle.getDescriptor().getHashCode())[LOGRATIO].fill(paddle.logRatio());
@@ -212,11 +212,11 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 	    	constantsTable.getEntry(sector, layer, paddle).setData(0, 
 	    			Math.round(getMipChannel(sector, layer, paddle)));
 	    	constantsTable.getEntry(sector, layer, paddle).setData(1, 
-	    			Double.parseDouble(new DecimalFormat("0.0").format(getMipChannelUnc(sector, layer, paddle))));
+	    			toDouble(new DecimalFormat("0.0").format(getMipChannelUnc(sector, layer, paddle))));
 	    	constantsTable.getEntry(sector, layer, paddle).setData(2, 
-					Double.parseDouble(new DecimalFormat("0.000").format(getLogRatio(sector, layer, paddle))));
+					toDouble(new DecimalFormat("0.000").format(getLogRatio(sector, layer, paddle))));
 	    	constantsTable.getEntry(sector, layer, paddle).setData(3, 
-					Double.parseDouble(new DecimalFormat("0.000").format(getLogRatioUnc(sector, layer, paddle))));
+					toDouble(new DecimalFormat("0.000").format(getLogRatioUnc(sector, layer, paddle))));
 	    	
 			//constantsTable.fireTableDataChanged();
 			
@@ -609,8 +609,8 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		String[] fields = {"Min range for geometric mean fit:", "Max range for geometric mean fit:", 
-						   "Override MIP channel:", "Override MIP channel uncertainty:",
+		String[] fields = {"Min range for geometric mean fit:", "Max range for geometric mean fit:", "SPACE",
+						   "Override MIP channel:", "Override MIP channel uncertainty:","SPACE",
 						   "Override Log ratio:", "Override Log ratio uncertainty:"};
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
@@ -730,13 +730,13 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 			
 			table.addEntry(sector, layer, paddle);
 			table.getEntry(sector, layer, paddle).setData(0, 
-					Double.parseDouble(new DecimalFormat("0.0").format(getMipChannel(sector, layer, paddle))));
+					toDouble(new DecimalFormat("0.0").format(getMipChannel(sector, layer, paddle))));
 			table.getEntry(sector, layer, paddle).setData(1, 
-					Double.parseDouble(new DecimalFormat("0.0").format(getMipChannelUnc(sector, layer, paddle))));
+					toDouble(new DecimalFormat("0.0").format(getMipChannelUnc(sector, layer, paddle))));
 			table.getEntry(sector, layer, paddle).setData(2, 
-					Double.parseDouble(new DecimalFormat("0.000").format(getLogRatio(sector, layer, paddle))));
+					toDouble(new DecimalFormat("0.000").format(getLogRatio(sector, layer, paddle))));
 			table.getEntry(sector, layer, paddle).setData(3, 
-					Double.parseDouble(new DecimalFormat("0.000").format(getLogRatioUnc(sector, layer, paddle))));
+					toDouble(new DecimalFormat("0.000").format(getLogRatioUnc(sector, layer, paddle))));
 
 		}
 	}

@@ -357,7 +357,7 @@ public class TOFLeftRight   implements IDetectorListener,IConstantsTableListener
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		String[] fields = { "Override centroid:" };
+		String[] fields = { "Override centroid:" , "SPACE"};
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
 		int result = JOptionPane.showConfirmDialog(null, panel, 

@@ -600,7 +600,7 @@ public class TOFPaddle2Paddle   implements IDetectorListener,IConstantsTableList
 	
 	public void customFit(int sector, int layer, int paddle){
 
-		String[] fields = { "Override Offset:"};
+		String[] fields = { "Override Offset:", "SPACE"};
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
 
 		int result = JOptionPane

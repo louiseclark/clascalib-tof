@@ -73,8 +73,6 @@ public class TOFAtten implements IDetectorListener, IConstantsTableListener,
 
 				this.container.get(paddle.getDescriptor().getHashCode()).fill(
 						paddle.position(), paddle.logRatio());
-				// this.container.get(paddle.getDescriptor().getHashCode()).fill(paddle.YPOS,
-				// paddle.logRatio());
 
 			} else {
 				System.out.println("Cant find : "
@@ -121,6 +119,11 @@ public class TOFAtten implements IDetectorListener, IConstantsTableListener,
 							+ paddle, "Log Ratio vs Position : Paddle "
 							+ paddle, 100, -250.0, 250.0, 100, -3.0, 3.0);
 					container.put(desc.getHashCode(), hist);
+					
+					hist.setTitle("Log Ratio vs Position : " + TOFCalibration.LAYER_NAME[layer_index] 
+									+ " Sector "+sector+" Paddle "+paddle);
+					hist.setXTitle("Position");
+					hist.setYTitle("Log ratio");
 
 					// initialize the treemap of constants array
 					Double[] consts = { 0.0, 0.0, 0.0 };
@@ -432,7 +435,7 @@ public class TOFAtten implements IDetectorListener, IConstantsTableListener,
 
 	public void customFit(int sector, int layer, int paddle) {
 
-		String[] fields = { "Min range for fit:", "Max range for fit:",
+		String[] fields = { "Min range for fit:", "Max range for fit:", "SPACE",
 				"Override Attenuation Length:", "Override Attenuation Length uncertainty:",
 				"Override offset:" };
 		TOFCustomFitPanel panel = new TOFCustomFitPanel(fields);
@@ -668,7 +671,7 @@ public class TOFAtten implements IDetectorListener, IConstantsTableListener,
 
 			fitCanvases[canvasNum].cd(padNum);
 			// fitHist.setLineColor(2);
-			fitHist.setTitle("Paddle " + paddleNum);
+			//fitHist.setTitle("Paddle " + paddleNum);
 			fitCanvases[canvasNum].draw(fitHist);
 
 			F1D fitFunc = getF1D(sector, layer, paddleNum);

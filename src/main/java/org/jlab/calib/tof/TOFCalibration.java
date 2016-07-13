@@ -60,7 +60,7 @@ public class TOFCalibration {
         atten.init();
         p2p.init();
         
-        processFile(inputFile);
+        processFiles(inputFile);
 
         hv.initDisplay();
         lr.initDisplay();
@@ -101,6 +101,7 @@ public class TOFCalibration {
                     } else {
                         shape.setColor(180, 180, 255);
                     }
+                    
                     viewHv.addShape(shape);
                     viewLr.addShape(shape);
                     viewTw.addShape(shape);
@@ -172,16 +173,81 @@ public class TOFCalibration {
         p2p.getView().getDetectorView().addDetectorLayer(viewP2P);
 
     }
-        
+
+    public void processFiles(String inputFile) {
+
+    	String file = inputFile;
+
+    	if (inputFile.contains(".evio")) {
+
+    		// Single file
+    		processFile(inputFile);
+
+    	}
+    	else if (inputFile.contains(".txt")) {
+
+    		try { 
+
+    			// Open the file
+    			String line = null;
+    			FileReader fileReader = 
+    					new FileReader(inputFile);
+
+    			// Always wrap FileReader in BufferedReader
+    			BufferedReader bufferedReader = 
+    					new BufferedReader(fileReader);            
+
+    			line = bufferedReader.readLine();
+
+    			while (line != null) {
+    				if (line.contains(".evio")) {
+    					processFile(line);
+    				}
+    				line = bufferedReader.readLine();
+    			}    
+    			bufferedReader.close();            
+    		}
+    		catch(FileNotFoundException ex) {
+    			ex.printStackTrace();
+    			System.out.println(
+    					"Unable to open file '" + 
+    							inputFile + "'");                
+    		}
+    		catch(IOException ex) {
+    			System.out.println(
+    					"Error reading file '" 
+    							+ inputFile + "'");                   
+    			// Or we could just do this: 
+    			// ex.printStackTrace();
+    		}		
+
+    	}
+
+    	System.out.println("HV analyze");
+        hv.analyze();
+        System.out.println("LR analyze");
+        lr.analyze();
+        System.out.println("TW analyze");
+        tw.analyze();
+        System.out.println("VEFF analyze");
+        veff.analyze();
+        System.out.println("ATTEN analyze");
+        atten.analyze();
+        System.out.println("P2P analyze");
+        p2p.analyze(eventList);
+
+    }
+
+    
     public void processFile(String inputFile) {
     	
+    	System.out.println("Processing file: " + inputFile);
     	String file = inputFile;
     	
     	if (inputFile.contains(".evio")) {
     	
     		EvioSource reader = new EvioSource();
     		reader.open(file);
-    		System.out.println(reader.getSize());
         
     		EventDecoder decoder = new EventDecoder();
     		
@@ -193,24 +259,24 @@ public class TOFCalibration {
         
 	        int maxEvents = 0;
 	        int eventNum = 0;
+	        
+    		System.out.println("Filename " + inputFile);
+	        System.out.println("getSize "+reader.getSize());	        
+	        
 	        while(reader.hasEvent()&&(eventNum<maxEvents||maxEvents==0)){
 	        	EvioDataEvent event = (EvioDataEvent) reader.getNextEvent();
 	        	processEvent(event, decoder);
 	        	eventNum++;
 	        }
+	        
+	        System.out.println("Finished reading events");
+	        
     	}
     	else {
     		
     		processTextFile(inputFile);
     	}
-	        
-        hv.analyze();
-        lr.analyze();
-        tw.analyze();
-        veff.analyze();
-        atten.analyze();
-        p2p.analyze(eventList);
-
+	    
     }
     
     private void processTextFile(String inputFile) {
