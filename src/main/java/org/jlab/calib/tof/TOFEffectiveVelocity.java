@@ -339,21 +339,55 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 	}
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
-		
-		int numHists = 1; //this.getH2D(sector, layer, paddle).length;
-		canvas.divide(numHists, 1);
-		
-		for (int i=0; i<numHists; i++) {			
 
-			canvas.cd(i);
+		// summary
+		// using same graphic
+		// so layer==4 is summary
+		// paddle number 1 = 1A, 2 = 1B, 3 = panel 2
+		if (layer == 4) {
 
-			Font font = new Font("Verdana", Font.PLAIN, 7);		
-			canvas.getPad().setFont(font);
-			
-			H2D hist = getH2D(sector, layer, paddle);
-			
-			canvas.draw(hist,"");
-			canvas.draw(this.getF1D(sector, layer, paddle),"same");
+			int layer_index = paddle - 1;
+			double[] paddleNumbers = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] paddleUncs = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] veffs = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] veffUncs = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+
+			for (int p = 1; p <= TOFCalibration.NUM_PADDLES[layer_index]; p++) {
+
+				paddleNumbers[p - 1] = (double) p;
+				paddleUncs[p - 1] = 0.0;
+				veffs[p - 1] = getVeff(sector, paddle, p);
+				veffUncs[p - 1] = getVeffError(sector, paddle, p);
+			}
+
+			GraphErrors summary = new GraphErrors("Summary", paddleNumbers,
+					veffs, paddleUncs, veffUncs);
+			summary.setTitle("Effective Velocity: "
+					+ TOFCalibration.LAYER_NAME[paddle - 1] + " Sector "
+					+ sector);
+			summary.setXTitle("Paddle Number");
+			summary.setYTitle("Effective Velocity (cm/ns)");
+			summary.setMarkerSize(5);
+			summary.setMarkerStyle(2);
+			canvas.draw(summary);
+
+		} else {		
+
+			int numHists = 1; //this.getH2D(sector, layer, paddle).length;
+			canvas.divide(numHists, 1);
+
+			for (int i=0; i<numHists; i++) {			
+
+				canvas.cd(i);
+
+				Font font = new Font("Verdana", Font.PLAIN, 7);		
+				canvas.getPad().setFont(font);
+
+				H2D hist = getH2D(sector, layer, paddle);
+
+				canvas.draw(hist,"");
+				canvas.draw(this.getF1D(sector, layer, paddle),"same");
+			}
 		}
 		
 	}

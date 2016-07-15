@@ -172,6 +172,7 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
     	// check any constraints
 
     	if (dsd.getDescriptor().getComponent()==0) return;
+    	if (dsd.getDescriptor().getLayer()==4) return;
     	
     	double mipChannel = getMipChannel(dsd.getDescriptor().getSector(), 
 				   dsd.getDescriptor().getLayer(), 
@@ -301,23 +302,80 @@ public class TOFHighVoltage  implements IDetectorListener,IConstantsTableListene
 	
 	public void drawComponent(int sector, int layer, int paddle, EmbeddedCanvas canvas) {
 		
-		int numHists = this.getH1D(sector, layer, paddle).length;
-		canvas.divide(numHists, 1);
-		
-		for (int i=0; i<numHists; i++) {			
-
-			canvas.cd(i);
-
-			Font font = new Font("Verdana", Font.PLAIN, 7);		
-			canvas.getPad().setFont(font);
+		// summary
+		// using same graphic
+		// so layer==4 is summary
+		// paddle number 1 = 1A, 2 = 1B, 3 = panel 2
+		if (layer == 4) {
 			
-			H1D hist = getH1D(sector, layer, paddle)[i];
-			hist.setLineColor(1);
+			int layer_index = paddle - 1;
+			double[] paddleNumbers = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] paddleUncs = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] MIPChannels = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] MIPChannelUncs = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+
+			for (int p = 1; p <= TOFCalibration.NUM_PADDLES[layer_index]; p++) {
+
+				paddleNumbers[p - 1] = (double) p;
+				paddleUncs[p - 1] = 0.0;
+				MIPChannels[p - 1] = getMipChannel(sector, paddle, p);
+				MIPChannelUncs[p - 1] = getMipChannelUnc(sector, paddle, p);
+			}
+
+			GraphErrors summary = new GraphErrors("Summary", paddleNumbers,
+					MIPChannels, paddleUncs, MIPChannelUncs);
+			summary.setTitle("MIP Channel: "
+					+ TOFCalibration.LAYER_NAME[paddle - 1] + " Sector "
+					+ sector);
+			summary.setXTitle("Paddle Number");
+			summary.setYTitle("MIP Channel");
+			summary.setMarkerSize(5);
+			summary.setMarkerStyle(2);
+			canvas.cd(0);
+			canvas.draw(summary);
 			
-			canvas.draw(hist,"");
-			canvas.draw(this.getF1D(sector, layer, paddle)[i],"same");
+			double[] LogRatios = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+			double[] LogRatioUncs = new double[TOFCalibration.NUM_PADDLES[layer_index]];
+
+			for (int p = 1; p <= TOFCalibration.NUM_PADDLES[layer_index]; p++) {
+
+				paddleNumbers[p - 1] = (double) p;
+				paddleUncs[p - 1] = 0.0;
+				LogRatios[p - 1] = getLogRatio(sector, paddle, p);
+				LogRatioUncs[p - 1] = getLogRatioUnc(sector, paddle, p);
+			}
+
+			summary = new GraphErrors("Summary", paddleNumbers,
+					LogRatios, paddleUncs, LogRatioUncs);
+			summary.setTitle("Log ratio: "
+					+ TOFCalibration.LAYER_NAME[paddle - 1] + " Sector "
+					+ sector);
+			summary.setXTitle("Paddle Number");
+			summary.setYTitle("Log ratio");
+			summary.setMarkerSize(5);
+			summary.setMarkerStyle(2);
+			canvas.cd(1);
+			canvas.draw(summary);
+			
+
+		} else {
+			int numHists = this.getH1D(sector, layer, paddle).length;
+			canvas.divide(numHists, 1);
+
+			for (int i=0; i<numHists; i++) {			
+
+				canvas.cd(i);
+
+				Font font = new Font("Verdana", Font.PLAIN, 7);		
+				canvas.getPad().setFont(font);
+
+				H1D hist = getH1D(sector, layer, paddle)[i];
+				hist.setLineColor(1);
+
+				canvas.draw(hist,"");
+				canvas.draw(this.getF1D(sector, layer, paddle)[i],"same");
+			}
 		}
-		
 	}
 
 	public void fitGeoMean(int sector, int layer, int paddle,

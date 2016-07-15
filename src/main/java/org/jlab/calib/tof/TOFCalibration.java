@@ -231,6 +231,8 @@ public class TOFCalibration {
     			// ex.printStackTrace();
     		}		
 
+    		writeHists();
+
     	}
 
     	System.out.println("HV analyze");

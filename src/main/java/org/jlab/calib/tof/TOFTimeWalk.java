@@ -34,6 +34,7 @@ import org.jlab.clas12.detector.EventDecoder;
 import org.jlab.clasrec.utils.CalibrationConstants;
 import org.jlab.evio.clas12.*;
 import org.root.func.*;
+//import org.jlab.groot.math.F1D;
 import org.root.histogram.*;
 import org.root.pad.TCanvas;
 import org.root.pad.TBookCanvas;
@@ -299,7 +300,7 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
     	
     	System.out.println("TW before processEvents");
     	// fill the time residual vs ADC histograms
-    	processEvents();
+    	//processEvents();
     	System.out.println("TW after processEvents");    	
     	
 		for(int sector = 1; sector <= 6; sector++){
@@ -308,7 +309,7 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 			//for (int layer = 1; layer <= 2; layer++) {
 				int layer_index = layer-1;
 				for(int paddle = 1; paddle <= TOFCalibration.NUM_PADDLES[layer_index]; paddle++){
-					//fitTimeWalk(sector, layer, paddle);
+					fitTimeWalk(sector, layer, paddle);
 				}
 			}
 		}
@@ -353,12 +354,13 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 			c2.draw(meanGraph);
 			
 			// fit function to the graph of means
+			//F1D trFunc = new F1D("func","[0]+([1]/x^[2]))");
 //			F1D trFunc = new F1D("[0]+([1]/x^[2]))");
 //			double[] initParams = {0.0,5.0,0.5};
 //			trFunc.setParameters(initParams);
 //			meanGraph.fit(trFunc);
 //			c2.draw(trFunc,"same");
-//			
+			
 //			System.out.println("New lambda is "+trFunc.getParameter(1));
 //			System.out.println("New order is "+trFunc.getParameter(2));
 		}
