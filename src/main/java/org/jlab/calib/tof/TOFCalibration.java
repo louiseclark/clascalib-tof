@@ -18,14 +18,19 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JTabbedPane;
 
+import org.jlab.clas.detector.DetectorDescriptor;
 import org.jlab.clas.detector.DetectorType;
 import org.jlab.clas12.calib.DetectorShape2D;
 import org.jlab.clas12.calib.DetectorShapeView2D;
 import org.jlab.clas12.detector.DetectorChannelDecoder;
 import org.jlab.clas12.detector.EventDecoder;
+import org.jlab.clasrec.main.DetectorMonitoring;
 import org.jlab.evio.clas12.EvioDataEvent;
+import org.jlab.evio.clas12.EvioDataSync;
 import org.jlab.evio.clas12.EvioSource;
-import org.root.histogram.H1D;
+import org.root.group.TBrowser;
+import org.root.group.TDirectory;
+import org.root.histogram.*;
 
 /**
  *
@@ -177,11 +182,16 @@ public class TOFCalibration {
     public void processFiles(String inputFile) {
 
     	String file = inputFile;
-
-    	if (inputFile.contains(".evio")) {
+    	
+    	if (inputFile.contains("Hists")) {
+    	
+    		readHists(inputFile);
+    	}
+    	else if (inputFile.contains(".evio")) {
 
     		// Single file
     		processFile(inputFile);
+    		writeHists();
 
     	}
     	else if (inputFile.contains(".txt")) {
@@ -235,7 +245,7 @@ public class TOFCalibration {
         atten.analyze();
         System.out.println("P2P analyze");
         p2p.analyze(eventList);
-
+        
     }
 
     
@@ -384,6 +394,42 @@ public class TOFCalibration {
 		veff.process(list);
 		atten.process(list);
 		
+	}
+	
+	public void writeHists() {
+		
+		FTOFMonitoring ftofMon = new FTOFMonitoring();
+		
+		TDirectory dir = new TDirectory("all_hists");
+		dir.add(veff.getH2D(1, 1, 1));
+		ftofMon.getDir().addDirectory(dir);
+		
+		TBrowser browser1 = new TBrowser(ftofMon.getDir());
+		
+		System.out.println("Writing hists");
+		System.out.println(ftofMon.getDir().toString());
+		
+		boolean success = (new File
+		         ("FTOFCalibrationHists.0.evio")).delete();
+		ftofMon.getDir().write("FTOFCalibrationHists.evio");
+		
+	}
+	
+	public void readHists(String inputFile) {
+		
+		
+		TDirectory dirFile = new TDirectory();
+		dirFile.readFile(inputFile);
+		dirFile.ls();
+		TBrowser browser = new TBrowser(dirFile);
+	
+		System.out.println("Reading hists");
+		System.out.println(dirFile.toString());
+		
+//		H2D hist = (H2D) dirFile.getDirectory("all_hists").getObject("VEFF");
+//		DetectorDescriptor desc = new DetectorDescriptor();
+//		desc.setSectorLayerComponent(1, 1, 1);
+//		veff.container.put(desc.getHashCode(), hist);
 	}
     
     

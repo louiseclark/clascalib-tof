@@ -90,11 +90,11 @@ public class TOFTimeWalk   implements IDetectorListener,IConstantsTableListener,
 	public void processEvents(){
 		
 		// paddle list is processed 5 times each time correcting the time using refined values for lambda and order
-		//double[] lambda = {0.0,0.0};
-		//double[] order = {2.0,2.0};
+		double[] lambda = {0.0,0.0};
+		double[] order = {2.0,2.0};
 		
-		double[] lambda = {1.0,1.0};
-		double[] order = {0.5,0.5};
+//		double[] lambda = {1.0,1.0};
+//		double[] order = {0.5,0.5};
 		
 		//double[] lambda = {-21435.6,21435.6};
 		//double[] order = {2.0,2.0};

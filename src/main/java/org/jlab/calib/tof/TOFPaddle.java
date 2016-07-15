@@ -208,6 +208,13 @@ public class TOFPaddle {
 		return ((tdcToTime(TDCL)-tdcToTime(TDCR))*vEff)/2.0;
     }  
     
+    public double paddleY() {
+    	
+    	int sector = desc.getSector();
+    	double rotation = Math.toRadians((sector-1) * 60);
+    	return YPOS*Math.cos(rotation) - XPOS*Math.sin(rotation);
+    }
+    
     public double refTime(double targetCentre) {
     	return (this.TOF_TIME - this.FLIGHT_TIME - ((this.VERTEX_Z - targetCentre)/C) - this.RF_TIME);
     }

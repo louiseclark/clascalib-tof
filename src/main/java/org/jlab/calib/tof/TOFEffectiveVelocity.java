@@ -72,7 +72,7 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 
 				// fill (Time Left - Time Right / 2) vs position
 				//if (paddle.isValidGeoMean()) {
-					this.container.get(paddle.getDescriptor().getHashCode()).fill(paddle.YPOS, paddle.halfTimeDiff());
+					this.container.get(paddle.getDescriptor().getHashCode()).fill(paddle.paddleY(), paddle.halfTimeDiff());
 				//}
 
 			} else {
@@ -115,14 +115,14 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
 					desc.setSectorLayerComponent(sector, layer, paddle);
 									
 					H2D hist = 
-					new H2D("Time Diff/2 vs Position - Sector "+desc.getSector()+
-							" Paddle "+desc.getComponent(),
+					new H2D("VEFF",
 							"Time Diff/2 vs Position - Sector "+desc.getSector()+
 							" Paddle "+desc.getComponent(),
 							//100, lowY(paddle), highY(paddle), 
 							100, -210.0, 210.0,
 							200, -10.0, 10.0);
 					
+					hist.setName("VEFF");
 					hist.setTitle("Half Time Diff vs Position : " + TOFCalibration.LAYER_NAME[layer_index] 
 							+ " Sector "+sector+" Paddle "+paddle);
 					hist.setXTitle("Position (cm)");
@@ -233,6 +233,7 @@ public class TOFEffectiveVelocity   implements IDetectorListener,IConstantsTable
         	
         	String outputFileName = writeTable(constantsTable);
 			JOptionPane.showMessageDialog(new JPanel(),"Calibration values written to "+outputFileName);
+			
         }
     }
 
